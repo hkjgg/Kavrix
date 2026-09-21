@@ -350,7 +350,7 @@ connector/                    KavrixConnector.mq5 + README
 ## 17. Build stages (status)
 
 - [x] 0 — Setup, tokens, fonts, UI primitives
-- [ ] 1 — Demo data generator
+- [x] 1 — Demo data generator
 - [ ] 2 — Analytics engine + Karat + tests
 - [ ] 3 — Assay dashboard (Dial, Pillars, Gap, Refinery, Proof)
 - [ ] 4 — Gold Clock + Purity Line + Vault
@@ -414,3 +414,95 @@ connector/                    KavrixConnector.mq5 + README
 - **No page at `/` yet.** The landing page is Stage 10, so the route group
   `app/(marketing)/` is still empty. `/styleguide` is the only real page.
 - `/styleguide` is temporary and is deleted once the real surfaces exist.
+
+### Stage 1 — Demo data generator ✅ (2026-09-21)
+
+**What exists now**
+- `lib/engine/types.ts` — the shared vocabulary: `Deal`, `SlModification`,
+  `NewsEvent`, `SymbolInfo`, `Account`, `Ea`, `Trade`, `IngestPayload`. Field
+  for field the ingest schema in §12, so demo data and a live MT5 feed are the
+  same shape. `Trade` is a *structural* aggregate only — no R, no risk%, no
+  session; the engine derives all of that in Stage 2.
+- `lib/demo/rng.ts` — mulberry32 plus a small `Rng` (uniform, normal, pick,
+  shuffle). Nothing in the demo path touches `Math.random` or the clock.
+- `lib/demo/calendar.ts` — a hand-written USD calendar for the window:
+  45 events, 37 of them high-impact, on real weekdays (NFP first Friday, CPI
+  mid-month, FOMC on a Wednesday at 18:00 UTC).
+- `lib/demo/price.ts` — 129,600 M1 bars as parallel typed arrays, with the
+  session volatility profile, news spikes, and a spread that widens at
+  rollover and on releases.
+- `lib/demo/generate.ts` — the account: 220 manual trades, 616 EA trades,
+  1,672 deals, 10 SL/TP modifications.
+- `lib/demo/generate.test.ts` — 30 Vitest cases: determinism, structure, and
+  one test per story in §11.
+- `scripts/demo-report.ts` behind `pnpm demo:report`.
+
+**Key constants** (all in `lib/demo/generate.ts` unless noted)
+- `DEMO_SEED = 20260920`. Same seed → byte-identical output, asserted.
+- Window `DEMO_START_MS` 2026-06-22 → `DEMO_END_MS` 2026-09-20, fixed, 90 days.
+- `DEMO_IMPROVEMENT_DAYS = 21` (discipline improves from 2026-08-30),
+  `DEMO_EA_DRIFT_DAYS = 30` (EA 1003 degrades from 2026-08-21).
+- `DEMO_START_PRICE = 2418.40` (in `price.ts`), `DEMO_STARTING_BALANCE = 25,000`,
+  contract size 100, commission $3.50/lot/side, swap −$11.80 long and −$3.40
+  short per lot per night, tripled on the Wednesday rollover.
+- The demo broker runs on UTC (`DEMO_SERVER_UTC_OFFSET_HOURS = 0`), so the
+  rollover window is 23:45–00:15.
+
+**Decisions taken**
+- **Behaviour is planned, not sampled.** The stories in §11 are requirements,
+  so `MANUAL_PLAN` states exactly how many trades of each cohort — news,
+  revenge, oversized, no-stop, widened-stop, rollover, London, ordinary — and
+  how many of each lose, split across the two phases. Tuning the data means
+  editing one table.
+- **Prices come out of the path, never out of arithmetic.** Each trade is
+  walked forward bar by bar until its stop, target or time runs out, so no
+  trade can quote a price the market never printed — a test proves it. The
+  generator chooses the *direction* to make the intended outcome reachable;
+  that is the only piece of hindsight in the file.
+- **The revenge rule catches more than revenge.** §6.1 fires on any trade
+  opened within 15 minutes of a losing close, or sized more than 1.25× after
+  one. Ordinary trades are therefore held back from tripping it — lots capped,
+  entries nudged past the window where the clock allows — so the 11.8% the
+  data reports is deliberate rather than accidental.
+- **Positive R, flat money.** Manual trading is +50.2R but only +$407: the
+  R-positive edge is given away by a handful of oversized revenge trades
+  (−$10,900 between 26 of them). That is the Karat Gap the product is for, and
+  it is visible in the raw data before the engine exists.
+- **MFE/MAE are prices, not R.** The generator records the extreme prices
+  reached while a position was open; converting them to R is engine work.
+- **`tsx` added as a dev dependency** so `pnpm demo:report` can run a
+  TypeScript script without a build step.
+
+**`pnpm demo:report`**
+```
+01 — THE LEDGER
+  Trades (total) 836 · manual 220 · EA 616 · deals 1672 · modifications 10
+  High-impact USD events 37 of 45 · manual win rate 50.0%
+  Manual net P&L +$407.44 · manual net R +50.2R · EA net P&L +$7,747.90
+  Closing balance $33,155.34
+02 — LOSSES CLUSTER AROUND USD NEWS
+  110 manual losses · 72 within ±20 min of a high-impact event (65.5%, target ≥ 60%)
+  86 manual trades in a news window, averaging −0.9R
+03 — REVENGE TRADING
+  26 revenge trades (11.8%, target 10–15%) · avg −0.9R vs +0.4R elsewhere · −$10,900.85
+04 — THE LONDON OPEN IS THE EDGE
+  71 trades 07:00–10:00 UTC · avg +1.3R (target ≥ +0.7R) · win rate 77.5%
+  Asia −0.5R · London open +1.3R · London 10:00–12:30 −0.2R · New York −0.3R
+05 — IMPURITIES
+  23 trades over 1.5% risk (worst 3.0%) · 6 without a stop · 7 stops widened
+  5 rollover entries · 65 active days, 9 of them overtrading
+06 — DISCIPLINE IMPROVES
+  First 69 days: 163 trades, 83 impure (50.9%), avg 0.0R
+  Last 21 days:   57 trades,  9 impure (15.8%), avg +0.7R
+07 — CONSTELLATION
+  1001 Gold Scalper     280 trades · exp +0.3R · PF 2.34 · baseline +0.3R
+  1002 London Breakout  127 trades · exp +0.5R · PF 3.30 · baseline +0.5R
+  1003 Grid Recovery    209 trades · exp  0.0R · PF 1.09 · baseline +0.3R
+  Correlation 1001 ↔ 1002 (daily P&L) 0.847 (target ≥ 0.600)
+  1003 expectancy: +0.3R over the first 60 days, −0.6R over the last 30
+```
+
+**Not built, on purpose**
+No engine module, no Karat, no UI. The story checks live inside the tests and
+the report script, where they are throwaway; §6 gets its real implementation
+in Stage 2.
