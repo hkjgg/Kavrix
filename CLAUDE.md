@@ -351,7 +351,7 @@ connector/                    KavrixConnector.mq5 + README
 
 - [x] 0 — Setup, tokens, fonts, UI primitives
 - [x] 1 — Demo data generator
-- [ ] 2 — Analytics engine + Karat + tests
+- [x] 2 — Analytics engine + Karat + tests
 - [ ] 3 — Assay dashboard (Dial, Pillars, Gap, Refinery, Proof)
 - [ ] 4 — Gold Clock + Purity Line + Vault
 - [ ] 5 — Ledger + Hallmarks + Trade Dossier
@@ -506,3 +506,181 @@ connector/                    KavrixConnector.mq5 + README
 No engine module, no Karat, no UI. The story checks live inside the tests and
 the report script, where they are throwaway; §6 gets its real implementation
 in Stage 2.
+
+
+### Stage 2 — Analytics engine, Karat, Gap, Proof, Fineness, findings ✅ (2026-09-21)
+
+**What exists now** (`lib/engine/`, pure TypeScript, no I/O, no `Date.now()`)
+- `settings.ts` — every threshold §5–§7 leaves configurable, with the spec's
+  defaults. Nothing else in the folder holds a magic number.
+- `math.ts` / `time.ts` — total numeric helpers (never `NaN`, never `−0`) and
+  UTC date maths, including ISO weeks and broker-server midnight.
+- `enrich.ts` — the only module that reads raw positions. Per trade: initial
+  risk $, risk %, `noStop`, R, sessions (overlaps allowed), news proximity in
+  minutes, news/rollover windows, SL compliance, duration, MFE/MAE in R, the
+  revenge flag and its reason, and a list of impurities.
+- `karat.ts` — the six pillars, recency weighting, points, Karat, tiers, the
+  "Assaying…" state, and the §6.5 deduction contract.
+- `series.ts` — daily Karat over the whole history, plus the week-on-week delta.
+- `gap.ts` — the Gap in R and money under single-pillar attribution.
+- `proof.ts` — weekly Karat, the two buckets, the hiding rule.
+- `ea.ts` — per-magic performance, Fineness and its four components, drift,
+  pairwise daily-P&L correlation.
+- `stats.ts` — equity curve, session/hour/weekday buckets, calendar days,
+  ranked hour windows.
+- `findings.ts` — eleven deterministic Refinery findings, ranked by money.
+- `index.ts` — `runEngine(data, settings, asOf)` → one `AssayResult`.
+- 197 Vitest cases across nine files, plus `lib/engine/fixtures.ts` (no
+  assertions, just trades). `pnpm engine:report` prints the read-out below.
+- `vitest.config.ts` now resolves `@/…` the way Next does, so engine modules
+  can import `lib/format` in tests.
+
+**Fixture arithmetic** (`lib/engine/fixtures.ts`)
+$10,000 equity, 0.10 lots, 100 oz a lot, a 10.00 stop — $100 of risk, exactly
+1% of equity, exactly 1R. Every expected value in the tests is hand-worked from
+that, so a failure points at a formula rather than at a fixture.
+
+**Decisions taken** (the spec leaves each of these open)
+- **Revenge is pinned to the previous trade.** The previous trade is the last
+  *manual* trade to **close** before this one **opened**, and both triggers —
+  the 15-minute window and the 1.25× lot — are measured against it. Trigger one
+  does not scan further back for any losing close: a winner in between breaks
+  the run. EA trades are neither flagged nor eligible as a predecessor.
+- **Exits overrun divides by losses, not by all trades.** The pillar asks how
+  well losses are cut; dividing by every trade would reward whoever simply lost
+  less often, and §6 scores process, not outcome.
+- **Holding asymmetry uses unweighted medians.** A weighted median over a
+  handful of losers is unstable; recency already lives in the window.
+- **Overtrading weights a day by the mean of its trades' weights**, so a
+  blow-out day last week costs more than the same day five weeks ago.
+- **A news-and-rollover trade is counted once**, under news. The pillar counts
+  trades, not violations.
+- **`news-strategy` exempts the trade from Market Conditions entirely**, not
+  just from the news half.
+- **The tier is read from the displayed (one-decimal) Karat**, so a dial
+  reading 23.5K can never be labelled 22K.
+- **Stops are "widened" against the running stop**, not the original: pulling a
+  stop to breakeven and then back out is a widening; trailing it closer never is.
+  Removing a stop is the worst widening there is.
+- **The Gap's R is in each trade's own R units**, so `money = costR × initial
+  risk` holds on every line. A no-stop disaster lands on Exits, which is what
+  §6.3 means by "Stops has no direct cost line".
+- **Weekly Karat for Proof is unweighted**, and weeks under five manual trades
+  are dropped rather than bucketed — one trade can score 24K or 0K.
+- **The Vault's day Karat is that day's own trades, unweighted, no minimum.**
+  It is a mark on a day; the score is the 30-day window in `series.ts`.
+- **Fineness components are all "a fraction of what this EA's own baseline led
+  you to expect"** (§7 names the four components and their weights but no
+  formulas), because the labels start at 995‰ — a healthy EA has to score ~1:
+  - *Expectancy stability* is measured in standard errors below baseline, the
+    same statistic as the drift alert: at baseline it is 1, at the drift
+    threshold 0.5, at twice the threshold 0. A raw `recent ÷ baseline` over 20
+    trades marked healthy EAs down for ordinary noise.
+  - *Drawdown vs baseline* compares the live drawdown to the baseline period's,
+    scaled by √n. No live history past the baseline scores 1.
+  - *Consistency* is the share of whole 20-trade blocks that made money.
+  - *Execution quality* is the account's median spread ÷ the spread the EA
+    paid. Slippage is not in the data — the connector sends the fill price,
+    never the requested one — so it is not guessed at.
+  - Fineness is `null` under 20 trades: not assayed rather than scored badly.
+- **Findings rank by money at stake**, costs and edges alike, and severity is
+  the share of the total Gap a finding carries — relative, because $400 is
+  critical on a $5,000 account and noise on a $500,000 one.
+- **Hour windows rank by total R, not average R.** Average alone crowns
+  whichever three hours held the fewest, luckiest trades.
+- **`runEngine` drops trades opened after `asOf`.** A snapshot must not know
+  about a trade that had not happened yet.
+
+**Two results differ from what the demo notes predicted.** Both are the spec
+behaving correctly, and both are asserted as they actually are in
+`lib/engine/demo.test.ts`:
+1. **Market Conditions, not Revenge, is the biggest Gap line** — $13,572 across
+   45 trades against $12,828 across 20. Attribution runs Revenge first, so
+   every revenge trade is already billed there; the demo simply plants a bigger
+   news habit than a revenge habit. Revenge is still the largest line the
+   trader *chose*, and beats Risk and Exits together many times over.
+2. **Your Proof stays hidden on the demo account.** Thirteen weeks clear the
+   five-trade minimum, eight score 20K or better, and none scores under 14K —
+   the worst week is 16.6K. With an empty low bucket there is nothing to
+   compare against, and §6.4 says the card is hidden. Showing "discipline paid
+   you X" anyway would be a number the data does not support (§2). If the card
+   should appear on `/demo`, that is a demo-data change (more genuinely impure
+   weeks), not an engine change.
+
+**Not built, on purpose**
+No UI, no snapshot persistence, no AI. The engine writes nothing and reads
+nothing; Stage 3 renders `AssayResult`, and Stage 8 stores it.
+
+**`pnpm engine:report`**
+```
+KAVRIX · ENGINE REPORT
+════════════════════════════════════════════════════════════════════════
+  Source                                Demo data · seed 20260920
+  As of                                 2026-09-20T00:00:00.000Z
+  Trades                                836 · manual 220 · EA 616
+
+01 — THE ASSAY
+────────────────────────────────────────────────────────────────────────
+  Karat                                 23.0K · 22K · Refined
+  Points                                95.71 / 100
+  Delta vs last week                    +0.6K (from 22.4K)
+  Window                                2026-08-21 → 2026-09-20 · 73 manual trades
+
+02 — PILLARS
+────────────────────────────────────────────────────────────────────────
+  Risk                                  ██████████    24.2 / 25
+      −0.76  Risk above the 1.0% limit · 4 trades
+  Revenge                               ██████████    19.6 / 20
+      −0.39  Opened within 15 min of a loss, and upsized · 2 trades
+  Stops                                 ██████████    14.8 / 15
+      −0.21  Stop moved further from entry · 2 trades
+  Exits                                 █████████·    13.8 / 15
+      −1.16  Losses worse than −1.1R · 4 trades
+  Overtrading                           ██████████    14.5 / 15
+      −0.54  More than 5 trades in a day · 1 day · 6 trades
+  Market Conditions                     █████████·     8.8 / 10
+      −1.00  Entered within 15 min of high-impact USD news · 10 trades
+      −0.22  Entered in the rollover window · 1 trade
+
+03 — KARAT GAP · 30-DAY WINDOW
+────────────────────────────────────────────────────────────────────────
+  Total                                 −$3,937.58 · −13.3R
+    Market Conditions                      −$2,693.01 ·   −10.4R · 9 trades
+    Revenge                                −$1,244.57 ·    −2.8R · 2 trades
+  All 90 days                           −$27,663.90 · −82.4R
+    Market Conditions                     −$13,572.44 ·   −49.4R · 45 trades
+    Revenge                               −$12,828.52 ·   −28.6R · 20 trades
+    Exits                                  −$1,026.52 ·    −3.9R · 3 trades
+    Risk                                     −$236.42 ·    −0.4R · 2 trades
+
+04 — YOUR PROOF
+────────────────────────────────────────────────────────────────────────
+  Hidden                                Needs 3 weeks in each bucket · 8 disciplined, 0 impure
+  20K and above                         8 weeks · +8.0R a week
+  Under 14K                             0 weeks · 0.0R a week
+  Discipline paid                       0.0R a week
+  Weeks scored                          W26 17.0K · W27 19.7K · W28 21.4K · W29 16.6K · W30 22.2K · W31 18.4K · W32 18.9K · W33 21.5K · W34 22.3K · W35 23.6K · W36 20.6K · W37 23.7K · W38 23.9K
+
+05 — THE REFINERY · TOP 3 FINDINGS
+────────────────────────────────────────────────────────────────────────
+  1. [critical] 71 trades opened within 15 min of a high-impact USD release, 60 of them losses, for −$22,389.31 and −64.3R.
+       impact                           −$22,389.31 · −64.3R · 71 trades
+  2. [strength] 07:00–10:00 UTC is your best window: 71 trades at +1.3R average, +$18,731.73.
+       impact                           +$18,731.73 · +90.8R · 71 trades
+  3. [critical] 26 revenge trades cost −$12,828.52, averaging −0.9R against +0.4R everywhere else.
+       impact                           −$12,828.52 · −28.6R · 26 trades
+  Other findings                        oversized-risk, exit-overrun, worst-weekday, no-stop, overtrading-days, ea-drift, rollover-entries, ea-same-bet
+
+06 — CONSTELLATION · EA FINENESS
+────────────────────────────────────────────────────────────────────────
+    EA                                  trades   exp      PF    DD     recent-20  fineness  label
+    1001 · Gold Scalper                   280   +0.3R   2.34   −9.0R     +0.4R     937.1‰   Watch
+       components                       stability 100.0% · drawdown 100.0% · consistency 71.4% · execution 94.3%
+    1002 · London Breakout                127   +0.5R   3.30   −5.1R     +0.3R     901.8‰   Watch
+       components                       stability 75.4% · drawdown 100.0% · consistency 100.0% · execution 100.0%
+    1003 · Grid Recovery                  209    0.0R   1.09  −41.0R     −1.0R     266.8‰   Degraded · drift
+       components                       stability 0.0% · drawdown 16.5% · consistency 60.0% · execution 97.4%
+    1001 ↔ 1002                         0.847  · same bet
+    1002 ↔ 1003                         0.032
+    1001 ↔ 1003                         -0.029
+```

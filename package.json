@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "demo:report": "tsx scripts/demo-report.ts"
+    "demo:report": "tsx scripts/demo-report.ts",
+    "engine:report": "tsx scripts/engine-report.ts"
   },
   "dependencies": {
     "next": "16.3.5",
