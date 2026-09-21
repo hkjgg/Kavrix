@@ -1,0 +1,201 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+   Kavrix — "Obsidian Gold" design tokens (CLAUDE.md §9)
+   Raw tokens live as CSS variables so non-Tailwind consumers (SVG charts,
+   canvas, inline styles) can read the exact same values.
+   --------------------------------------------------------------------------- */
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #0a0a0c; /* page (obsidian) */
+  --surface-1: #111114; /* cards */
+  --surface-2: #1a1a1e; /* hover / raised */
+  --line: #1e1d21; /* hairlines */
+
+  /* Text */
+  --text: #ede9e1; /* primary (warm off-white, never pure white) */
+  --text-2: #b8b2a6; /* secondary */
+  --text-3: #8e897f; /* labels / captions */
+
+  /* Gold — the ONE accent (brand + interaction) */
+  --gold: #d4af6a;
+  --gold-light: #f3dfa8;
+  --gold-deep: #8c6a2f;
+  --champagne: #e9d8a6;
+
+  /* Secondary metals */
+  --bronze: #a8743f; /* New York session, secondary series */
+  --slate: #5e5b66; /* Asia session, neutral series */
+
+  /* P&L — never pure red/green, never used for anything but P&L */
+  --jade: #6fc291; /* profit */
+  --oxblood: #c0564b; /* loss */
+  --oxblood-text: #e08a7e; /* loss, text variant */
+
+  /* Markers */
+  --news: #c9953f;
+}
+
+/* ---------------------------------------------------------------------------
+   Tailwind theme mapping. `inline` keeps the var() references intact so the
+   generated utilities resolve against :root at runtime.
+   --------------------------------------------------------------------------- */
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+
+  --color-gold: var(--gold);
+  --color-gold-light: var(--gold-light);
+  --color-gold-deep: var(--gold-deep);
+  --color-champagne: var(--champagne);
+
+  --color-bronze: var(--bronze);
+  --color-slate: var(--slate);
+
+  --color-jade: var(--jade);
+  --color-oxblood: var(--oxblood);
+  --color-oxblood-text: var(--oxblood-text);
+
+  --color-news: var(--news);
+
+  /* Fonts (CLAUDE.md §9). Variables are injected by next/font in app/layout.tsx. */
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  /* Numbers, prices and R values always line up in columns. */
+  --font-mono--font-feature-settings: 'tnum' 1, 'zero' 1;
+
+  /* Cards: 20px radius (CLAUDE.md §9) */
+  --radius-card: 20px;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+  }
+
+  /* Focus states in gold (CLAUDE.md §16) */
+  :focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: color-mix(in srgb, var(--gold) 30%, transparent);
+    color: var(--text);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Signature utilities
+   --------------------------------------------------------------------------- */
+
+@keyframes kavrix-metal-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes kavrix-sheen {
+  0% {
+    background-position: -150% 0;
+  }
+  100% {
+    background-position: 250% 0;
+  }
+}
+
+/* Metallic gold gradient: gold-light → gold → gold-deep.
+   Reserved for signature elements only (CLAUDE.md §9). */
+@utility metal-gold {
+  background-image: linear-gradient(
+    135deg,
+    var(--gold-light) 0%,
+    var(--gold) 45%,
+    var(--gold-deep) 100%
+  );
+  background-size: 200% 200%;
+  background-position: 0% 50%;
+  animation: kavrix-metal-shift 8s ease-in-out infinite;
+}
+
+/* Same gradient, painted through the glyphs. */
+@utility metal-gold-text {
+  background-image: linear-gradient(
+    135deg,
+    var(--gold-light) 0%,
+    var(--gold) 45%,
+    var(--gold-deep) 100%
+  );
+  background-size: 200% 200%;
+  background-position: 0% 50%;
+  animation: kavrix-metal-shift 8s ease-in-out infinite;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Slow gold sheen sweeping across text (the logo treatment). */
+@utility sheen {
+  background-image: linear-gradient(
+    100deg,
+    var(--gold) 0%,
+    var(--gold) 38%,
+    var(--gold-light) 50%,
+    var(--gold) 62%,
+    var(--gold) 100%
+  );
+  background-size: 250% 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: kavrix-sheen 6s linear infinite;
+}
+
+/* Hairline gold border for the "engraved" feel. */
+@utility engraved {
+  border: 1px solid color-mix(in srgb, var(--gold) 22%, transparent);
+}
+
+/* CLAUDE.md §2: respect prefers-reduced-motion everywhere.
+   The gradients stay — only the motion stops. */
+@media (prefers-reduced-motion: reduce) {
+  .metal-gold,
+  .metal-gold-text,
+  .sheen {
+    animation: none;
+    background-position: 50% 50%;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
