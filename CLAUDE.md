@@ -349,7 +349,7 @@ connector/                    KavrixConnector.mq5 + README
 
 ## 17. Build stages (status)
 
-- [ ] 0 — Setup, tokens, fonts, UI primitives
+- [x] 0 — Setup, tokens, fonts, UI primitives
 - [ ] 1 — Demo data generator
 - [ ] 2 — Analytics engine + Karat + tests
 - [ ] 3 — Assay dashboard (Dial, Pillars, Gap, Refinery, Proof)
@@ -361,3 +361,56 @@ connector/                    KavrixConnector.mq5 + README
 - [ ] 9 — AI explanations
 - [ ] 10 — Cinematic landing
 - [ ] 11 — Polish, README with architecture diagram, deploy
+
+---
+
+## 18. Progress notes
+
+### Stage 0 — Setup, tokens, fonts, UI primitives ✅ (2026-09-21)
+
+**Scaffolded**
+- Next.js 16 (App Router, Turbopack) + React 19 + TypeScript strict, pnpm.
+- Tailwind CSS v4 (CSS-first config, `@tailwindcss/postcss`), ESLint 9 with
+  `eslint-config-next` flat config, Vitest 5.
+- Scripts: `pnpm dev | build | start | lint | typecheck | test`.
+- Folder structure exactly as §15; empty folders hold a `.gitkeep`.
+
+**Design tokens (§9)**
+- Every colour token is a CSS variable on `:root` in `app/globals.css`, then
+  mapped into the Tailwind theme with `@theme inline` — so `bg-bg`,
+  `text-text-2`, `border-line`, `text-gold`, `text-oxblood-text` etc. all
+  resolve to the same variables that SVG charts will read directly.
+- Utilities: `metal-gold` (surface gradient), `metal-gold-text` (gradient
+  painted through glyphs), `sheen` (slow gold sweep, the logo treatment),
+  `engraved` (hairline gold border). All motion stops under
+  `prefers-reduced-motion`; the gradients themselves stay visible.
+- `rounded-card` = 20px, from `--radius-card`.
+
+**Fonts (§9)**
+- `next/font/google`: Instrument Serif → `font-serif`, Manrope → `font-sans`
+  (body default), JetBrains Mono → `font-mono`. Mono carries
+  `font-feature-settings: 'tnum' 1, 'zero' 1`, so every figure column lines up
+  without a per-component utility.
+
+**Primitives (`components/ui/`)**
+- `Card`, `SectionHeading`, `Label`, `Stat`, `Button`, `Badge`, and a `Table`
+  set (`Table`, `TableHead`, `TableBody`, `TableRow`, `TableHeaderCell`,
+  `TableCell`). All typed, presentational only, no metric computation.
+- Barrel export at `components/ui/index.ts`.
+
+**Formatting (`lib/format.ts`)**
+- `formatR`, `formatMoney`, `formatPct`, `formatKarat`, all with fixed decimals
+  and a real minus sign (U+2212). 24 Vitest cases in `lib/format.test.ts`.
+
+**Decisions taken**
+- **Tailwind v4 over v3.** Tokens live in CSS rather than a JS config, which
+  matches the "design tokens as CSS variables" rule in §9 and avoids keeping
+  two copies of the palette.
+- **No `clsx`/`tailwind-merge`.** A six-line `cn()` in `lib/cn.ts` is enough;
+  Kavrix composes classes, it never merges conflicting utilities.
+- **Sign outside the currency symbol** in `formatMoney` (`−$820.00`), the way a
+  private-bank statement reads, and the way a column of figures stays scannable.
+- **Non-finite values render as an em dash**, never `NaN`.
+- **No page at `/` yet.** The landing page is Stage 10, so the route group
+  `app/(marketing)/` is still empty. `/styleguide` is the only real page.
+- `/styleguide` is temporary and is deleted once the real surfaces exist.
