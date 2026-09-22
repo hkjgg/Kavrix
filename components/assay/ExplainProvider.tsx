@@ -15,6 +15,8 @@ interface ExplainContextValue {
   open: (id: string) => void;
   close: () => void;
   has: (id: string) => boolean;
+  /** The explanation itself, for surfaces that show it in place (Stage 3.5). */
+  get: (id: string) => ExplainEntry | null;
   openId: string | null;
 }
 
@@ -51,10 +53,11 @@ export function ExplainProvider({ index, children }: ExplainProviderProps) {
     setOpenId(null);
   }, []);
   const has = useCallback((id: string) => index[id] !== undefined, [index]);
+  const get = useCallback((id: string) => index[id] ?? null, [index]);
 
   const value = useMemo<ExplainContextValue>(
-    () => ({ open, close, has, openId }),
-    [open, close, has, openId],
+    () => ({ open, close, has, get, openId }),
+    [open, close, has, get, openId],
   );
 
   const entry: ExplainEntry | null = openId === null ? null : (index[openId] ?? null);

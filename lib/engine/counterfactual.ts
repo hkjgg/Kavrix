@@ -30,8 +30,10 @@
  * revenge trade opened in a news window is removed by both toggles, because
  * either habit alone would have been enough to prevent it.
  *
- * So the two numbers do not match, and they are not supposed to: the Gap is
- * always the smaller and the stricter of the two.
+ * So the two numbers do not match, and neither is the smaller by rule. The
+ * Gap counts only losses, and only part of an oversized or overrun loss; the
+ * What-if also removes the impurity trades that won, which pulls its
+ * difference down. On most accounts the What-if difference is the smaller.
  */
 
 import type { EnrichedTrade } from './enrich';
@@ -121,7 +123,7 @@ export interface CounterfactualScenario {
   /** `endMoney − actual end money`. Positive means the account ends higher. */
   deltaMoney: number;
   deltaR: number;
-  /** What the Gap bills for these same trades (§6.3) — always the smaller number. */
+  /** What the Gap bills for these same trades (§6.3) — losses only, so it need not match `deltaMoney`. */
   gapCostMoney: number;
   /** Trade ids, so the UI can redraw any toggle by subtraction alone. */
   removedTradeIds: string[];

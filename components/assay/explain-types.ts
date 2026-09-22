@@ -59,6 +59,12 @@ export interface ExplainEntry {
   valueCaption: string | null;
   /** Plain language: what this number is. */
   definition: string;
+  /**
+   * What period and weighting the number covers, when a reader could mistake
+   * it for another number on the page that covers a different one — a
+   * 30-day, recency-weighted pillar beside a 90-day, unweighted finding.
+   */
+  scopeNote: string | null;
   /** The formula, quoted from CLAUDE.md. */
   formula: string;
   /** Where the formula comes from, e.g. `CLAUDE.md §6.1 — Risk`. */
