@@ -4,6 +4,7 @@ import type { Finding } from '@/lib/engine/findings';
 import { formatMoney } from '@/lib/format';
 import {
   EXPLAIN_IDS,
+  GAP_VS_WHAT_IF,
   buildExplainIndex,
   findingPeriodLabel,
   historyPeriodLabel,
@@ -77,7 +78,6 @@ describe('the pillar and finding drawers explain why they can disagree', () => {
 
   it('leaves the sentence off numbers that are not part of the disagreement', () => {
     expect(index[EXPLAIN_IDS.karat]?.scopeNote).toBeNull();
-    expect(index[EXPLAIN_IDS.gapTotal('window')]?.scopeNote).toBeNull();
     expect(index[EXPLAIN_IDS.proof]?.scopeNote).toBeNull();
   });
 });
@@ -106,6 +106,17 @@ describe('the What-if behind the bullion bars', () => {
 
   it('removes winners too, and says the Gap is a different number', () => {
     expect(all?.removedWins ?? 0).toBeGreaterThan(0);
-    expect(entry?.note).toContain('not supposed to match');
+    expect(entry?.scopeNote).toBe(GAP_VS_WHAT_IF);
+  });
+
+  it('explains the Gap and the What-if in the same words on both drawers', () => {
+    expect(GAP_VS_WHAT_IF).toContain('neither is the smaller by rule');
+    expect(index[EXPLAIN_IDS.gapTotal('window')]?.scopeNote).toBe(GAP_VS_WHAT_IF);
+    expect(index[EXPLAIN_IDS.gapTotal('all')]?.scopeNote).toBe(GAP_VS_WHAT_IF);
+  });
+
+  it('holds on the demo account: the What-if difference is smaller than the Gap for the same trades', () => {
+    if (all === undefined) throw new Error('no "every impurity" scenario');
+    expect(all.deltaMoney).toBeLessThan(all.gapCostMoney);
   });
 });

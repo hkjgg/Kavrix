@@ -6,7 +6,7 @@ import { formatMoney, formatR } from '@/lib/format';
 import type { AssayResult } from '@/lib/engine';
 import { ExplainButton } from './ExplainButton';
 import { GapCard, type GapScopeView } from './GapCard';
-import { EXPLAIN_IDS, historyPeriodLabel } from './explain';
+import { EXPLAIN_IDS, GAP_VS_WHAT_IF, historyPeriodLabel } from './explain';
 
 /**
  * `03 — The Gap` (CLAUDE.md §6.3, §6.10, §8.5) — what indiscipline cost, told
@@ -18,8 +18,9 @@ import { EXPLAIN_IDS, historyPeriodLabel } from './explain';
  *     one: bright, pure metal. The actual bar is the alloy. Always labelled
  *     "Counterfactual, not a promise" (§6.10).
  *  2. **As a bill.** The Karat Gap: losses only, each trade billed once, to
- *     one pillar, broken down beneath. The two do not match, and are not
- *     meant to: the bars remove winners too, the bill counts only losses.
+ *     one pillar, broken down beneath. The two do not match and neither is
+ *     the smaller by rule — `GAP_VS_WHAT_IF` says why, in the same words the
+ *     drawers use.
  *
  * Nothing here is set larger than the Karat — the Gap is a consequence of the
  * score, not the headline of the page.
@@ -286,7 +287,7 @@ export function GapScene({ assay }: { assay: AssayResult }) {
         className="enter-rise mt-16 lg:mt-20"
         style={beatStyle({ delay: 1400, duration: 700 }) as CSSProperties}
       >
-        <GapCard scopes={gapScopes(assay)} countDelayMs={1400} />
+        <GapCard scopes={gapScopes(assay)} countDelayMs={1400} note={GAP_VS_WHAT_IF} />
       </div>
     </Scene>
   );

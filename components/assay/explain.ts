@@ -56,6 +56,13 @@ export function scopeNote(settings: EngineSettings): string {
   return `Pillars score the last ${settings.rollingWindowDays} days, weighted towards the most recent trades; a Refinery finding counts every trade in its own period, unweighted — so a habit that has mostly stopped can still lead the Refinery while its pillar scores well, and both numbers are right.`;
 }
 
+/**
+ * How the Karat Gap and the What-if relate — one sentence, used by the Gap
+ * drawer, the What-if drawer and the Gap card, so the page says it one way.
+ */
+export const GAP_VS_WHAT_IF =
+  'The Karat Gap bills only the losses of impurity trades — each trade once, to one pillar, and only part of the loss for Risk and Exits. The What-if removes every impurity trade, winners included. The two are not supposed to match, and neither is the smaller by rule: the winners the What-if removes usually leave its difference smaller than the Gap.';
+
 /** The whole history the engine was given: `90 days · 2026-06-22 → 2026-09-20`. */
 export function historyPeriodLabel(assay: AssayResult): string {
   const first = assay.trades.reduce<number | null>(
@@ -396,7 +403,7 @@ function gapTotalEntry(
     valueCaption: `${formatR(-gap.totalCostR)} · ${pluralTrades(gap.impurityCount)} of ${gap.tradeCount} manual · ${caption}`,
     definition:
       'The money your impurity trades gave away. It is a bill, not a forecast: every dollar in it comes from a trade that has already closed.',
-    scopeNote: null,
+    scopeNote: GAP_VS_WHAT_IF,
     formula:
       'Each impurity trade is attributed to exactly one pillar, in priority order: Revenge → Market Conditions → Risk → Exits. No dollar is billed twice, and a winning impurity trade costs nothing.',
     source: 'CLAUDE.md §6.3 — Karat Gap',
@@ -602,7 +609,7 @@ function whatIfEntry(
     valueCaption: `${formatR(all.deltaR)} · ${pluralTrades(all.removedTradeCount)} removed · ${caption}`,
     definition:
       'The account as it actually finished, against the same account with every impurity trade taken out — the winners among them too. It answers one question: what would this account read if those trades had never been placed, and everything else had happened as it did?',
-    scopeNote: null,
+    scopeNote: GAP_VS_WHAT_IF,
     formula: `${whatIf.method} A manual trade carrying any impurity is removed; EA trades never are.`,
     source: 'CLAUDE.md §6.10 — Counterfactual',
     lines: [
@@ -624,7 +631,7 @@ function whatIfEntry(
     rowsTitle: rows.length > 0 ? 'The costliest trades removed' : null,
     rowsNote: note,
     confidence: null,
-    note: 'The Karat Gap is a bill, not a curve: it counts losses only, each trade once, to one pillar. The What-if removes whole trades, winners included. The two numbers are not supposed to match.',
+    note: 'Linear, as V1 is: the removed trades are taken out and nothing that remains is re-sized or re-priced.',
   };
 }
 

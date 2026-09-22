@@ -62,9 +62,11 @@ export interface GapCardProps {
   scopes: readonly GapScopeView[];
   /** When the counters start, once the scene is seen — its beat in the sequence. */
   countDelayMs?: number;
+  /** How the bill relates to the bullion bars above it, in the drawers' words. */
+  note?: string;
 }
 
-export function GapCard({ scopes, countDelayMs = 0 }: GapCardProps) {
+export function GapCard({ scopes, countDelayMs = 0, note }: GapCardProps) {
   const [scopeKey, setScopeKey] = useState<GapScopeKey>('window');
   const scope = scopes.find((item) => item.key === scopeKey) ?? scopes[0];
   if (scope === undefined) return null;
@@ -131,11 +133,9 @@ export function GapCard({ scopes, countDelayMs = 0 }: GapCardProps) {
         </span>
       </div>
 
-      <p className="text-xs leading-relaxed text-text-3">
-        A bill, not a curve: losses only, each trade billed once, to one pillar. The
-        bars above remove whole trades, winners included, so the two numbers are not
-        supposed to match.
-      </p>
+      {note !== undefined ? (
+        <p className="text-xs leading-relaxed text-text-3">{note}</p>
+      ) : null}
       </div>
 
       <div className="flex flex-col gap-6 lg:pt-1">

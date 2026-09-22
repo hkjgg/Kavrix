@@ -1,7 +1,8 @@
+import { existsSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { getDemoAssay } from '@/lib/demo/assay';
-import { findingPeriodLabel } from '@/components/assay/explain';
+import { GAP_VS_WHAT_IF, findingPeriodLabel } from '@/components/assay/explain';
 import { formatKarat, formatMoney } from '@/lib/format';
 import DemoPage from './page';
 
@@ -107,6 +108,17 @@ describe('/demo', () => {
     expect(markup).toContain(money(all.endMoney));
     expect(markup).toContain(money(all.deltaMoney));
     expect(markup).toContain('Counterfactual, not a promise');
+  });
+
+  it('says how the Gap and the bars relate, in the drawers’ own words', () => {
+    // The sentence carries an em dash, which the markup escapes; compare its first clause.
+    expect(markup).toContain(GAP_VS_WHAT_IF.split(' — ')[0]);
+  });
+
+  it('has no loading boundary, so the prerendered page is readable without JavaScript', () => {
+    // A `loading.tsx` makes Next stream the finished page into a `<div hidden>`
+    // that only a script reveals. The route is static; it needs no fallback.
+    expect(existsSync(new URL('./loading.tsx', import.meta.url))).toBe(false);
   });
 
   it('shows Your Proof with the difference between the buckets', () => {

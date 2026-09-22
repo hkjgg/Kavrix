@@ -234,11 +234,16 @@ counterfactual, plus **per-pillar toggles** (revenge only, market conditions onl
 - **V1 is linear**: the removed trades' P&L is subtracted from the curve in close order and
   nothing else is recomputed — no re-sizing, no margin, no compounding. A trade that risked 1%
   of a larger equity is not re-priced against the equity it would have had.
-- **How it differs from the Karat Gap (§6.3).** The Gap is a *bill*: losses only, each
-  attributed to exactly one pillar in priority order, so no dollar is billed twice. The What-if
-  is a *curve*: whole trades, winners included, and a trade carrying two kinds of impurity is
-  removed by both toggles, because either habit alone would have prevented it. The two numbers
-  do not match and are not supposed to — the Gap is always the smaller and the stricter.
+- **How it differs from the Karat Gap (§6.3).** The Gap is a *bill*: it counts only the
+  losses of impurity trades, each trade once, to one pillar in priority order — and for Risk
+  and Exits only part of the loss. The What-if is a *curve*: it removes every impurity trade,
+  winners included, and a trade carrying two kinds of impurity is removed by both toggles,
+  because either habit alone would have prevented it. The two numbers do not match and are not
+  supposed to, and **neither is the smaller by rule**: the winners the What-if removes usually
+  leave its difference smaller than the Gap (on the demo, +$17,108 against $26,700 billed for
+  the same trades), while the Gap's partial Risk and Exits lines can pull it the other way. The
+  page states this in one sentence, `GAP_VS_WHAT_IF` in `components/assay/explain.ts`, shared
+  by the Gap drawer, the What-if drawer and the Gap card.
 
 ### 6.11 Discipline Replay
 Per UTC day: the trades in order, the **running day Karat after each trade**, and each impurity
@@ -1073,8 +1078,8 @@ every number on the page is read off `AssayResult` rather than computed in a com
 **Routes**
 - `app/demo/page.tsx` — the Assay. `dynamic = 'force-static'`, so the generator and the engine
   run once at build time and the route is served as static HTML.
-- `app/demo/loading.tsx` — "Assaying…" with the gold-dust shimmer. Rarely seen on a prerendered
-  route; the copy is the product's, not the framework's.
+- ~~`app/demo/loading.tsx`~~ — removed after Stage 3.5: a loading boundary hid the prerendered
+  page from readers without JavaScript (see the Stage 3.5 notes).
 - `app/(marketing)/page.tsx` — `redirect('/demo')` until the landing lands in Stage 10. It sits
   in the marketing group so Stage 10 replaces it rather than working around it.
 - `app/icon.svg` — the dial in miniature (obsidian face, gold scale, hand at 23K).
@@ -1258,15 +1263,15 @@ the explanation; Esc and the centre both restore and return focus; the Karat sti
 drawer; the finding drawer shows the scope sentence; no horizontal scroll at 375 px or 1440 px;
 the stacked phone layout opens the explanation under the grid.
 
-**Left standing, for the product owner to call**
-1. **`/demo` without JavaScript shows "Assaying…", not the page.** This predates Stage 3.5:
-   `app/demo/loading.tsx` makes Next stream the prerendered page into a `<div hidden>` that an
-   inline script reveals. Everything this stage adds renders final without JavaScript, but the
-   Stage 3 note claiming the same for the whole page is not true while `loading.tsx` exists.
-   Deleting it (the route is static, so the fallback only matters on client navigation) would
-   fix it — not done here, because it is outside this stage.
-2. **§6.10 says the Gap is "always the smaller" than the What-if. On the demo it is not**: over
-   90 days the Gap bills $26,700.37 for the same trades whose removal moves the curve by
-   +$17,108.24, because the What-if also removes 42 winners. The copy on the page says only that
-   the two are not supposed to match. §6.10's sentence probably means "smaller than the removed
-   trades' losses" and wants rewording.
+**Resolved after review (2026-09-22), both at the product owner's call**
+1. **`app/demo/loading.tsx` is deleted.** It made Next stream the prerendered page into a
+   `<div hidden>` that only an inline script revealed, so `/demo` without JavaScript showed
+   "Assaying…" instead of the Assay. The route is static and needs no fallback; the page test
+   now fails if the file comes back. "Assaying…" still lives where it means something: the
+   dial's own not-enough-trades state.
+2. **§6.10 is reworded.** It said the Gap is "always the smaller" number; on the demo it is the
+   larger ($26,700.37 billed against a +$17,108.24 What-if difference for the same trades,
+   because the What-if also removes 42 winners). The spec now says neither is the smaller by
+   rule, and why. The page says it in one sentence, `GAP_VS_WHAT_IF`, shared by the Gap drawer,
+   the What-if drawer and the Gap card, and the two engine comments that repeated the old claim
+   (`lib/engine/counterfactual.ts`, comments only — no code) now agree with it.
