@@ -34,6 +34,53 @@ import type {
 /** Trades listed in the drawer before it starts summarising. */
 const MAX_ROWS = 12;
 
+const DAY_MS = 86_400_000;
+
+/* -------------------------------------------------------------------------
+ * Scope — what period and weighting a number covers (Stage 3.5)
+ *
+ * The Assay shows two kinds of number side by side. The pillars are the Karat
+ * Score's own: a rolling window, recency-weighted. The Refinery's findings are
+ * measured over their own period, unweighted. Both are correct and they can
+ * disagree — Market Conditions can score 9.1 / 10 while the top finding is a
+ * five-figure news-window loss — so every value says which kind it is.
+ * ---------------------------------------------------------------------- */
+
+/** Printed beside every pillar value: `30-day · recency-weighted`. */
+export function pillarScopeLabel(settings: EngineSettings): string {
+  return `${settings.rollingWindowDays}-day · recency-weighted`;
+}
+
+/** The one sentence both drawers carry, pillar and finding alike. */
+export function scopeNote(settings: EngineSettings): string {
+  return `Pillars score the last ${settings.rollingWindowDays} days, weighted towards the most recent trades; a Refinery finding counts every trade in its own period, unweighted — so a habit that has mostly stopped can still lead the Refinery while its pillar scores well, and both numbers are right.`;
+}
+
+/** The whole history the engine was given: `90 days · 2026-06-22 → 2026-09-20`. */
+export function historyPeriodLabel(assay: AssayResult): string {
+  const first = assay.trades.reduce<number | null>(
+    (earliest, trade) =>
+      earliest === null || trade.openTimeMs < earliest ? trade.openTimeMs : earliest,
+    null,
+  );
+  const end = assay.asOf.slice(0, 10);
+  if (first === null) return end;
+  const days = Math.max(Math.round((Date.parse(assay.asOf) - first) / DAY_MS), 1);
+  return `${days} days · ${new Date(first).toISOString().slice(0, 10)} → ${end}`;
+}
+
+/**
+ * The period a Refinery finding was measured over. "Outside your normal"
+ * compares the last few days against everything before them; every other
+ * finding counts the whole history.
+ */
+export function findingPeriodLabel(finding: Finding, assay: AssayResult): string {
+  if (finding.kind === 'outside-normal') {
+    return `Last ${assay.baselines.recentDays} days · against your history`;
+  }
+  return historyPeriodLabel(assay);
+}
+
 /* -------------------------------------------------------------------------
  * Small formatters
  * ---------------------------------------------------------------------- */
@@ -282,6 +329,7 @@ export const EXPLAIN_IDS = {
   gapTotal: (scope: 'window' | 'all'): string => `gap:${scope}`,
   gapLine: (scope: 'window' | 'all', pillar: string): string => `gap:${scope}:${pillar}`,
   finding: (id: string): string => `finding:${id}`,
+  whatIf: 'what-if',
 } as const;
 
 function pillarEntry(
@@ -306,8 +354,9 @@ function pillarEntry(
     title: pillar.label,
     value: `${pillar.points.toFixed(1)} / ${pillar.maxPoints}`,
     valueTone: pillar.points >= pillar.maxPoints * 0.85 ? 'gold' : 'neutral',
-    valueCaption: `${pluralTrades(pillar.tradeCount)} scored · ${windowCaption}`,
+    valueCaption: `${pillarScopeLabel(settings)} · ${pluralTrades(pillar.tradeCount)} scored · ${windowCaption}`,
     definition: PILLAR_DEFINITION[pillar.key],
+    scopeNote: scopeNote(settings),
     formula: pillarFormula(pillar.key, settings),
     source: `CLAUDE.md §6.1 — ${pillar.label}`,
     lines,
@@ -347,6 +396,7 @@ function gapTotalEntry(
     valueCaption: `${formatR(-gap.totalCostR)} · ${pluralTrades(gap.impurityCount)} of ${gap.tradeCount} manual · ${caption}`,
     definition:
       'The money your impurity trades gave away. It is a bill, not a forecast: every dollar in it comes from a trade that has already closed.',
+    scopeNote: null,
     formula:
       'Each impurity trade is attributed to exactly one pillar, in priority order: Revenge → Market Conditions → Risk → Exits. No dollar is billed twice, and a winning impurity trade costs nothing.',
     source: 'CLAUDE.md §6.3 — Karat Gap',
@@ -379,6 +429,7 @@ function gapLineEntry(
     valueTone: 'loss',
     valueCaption: `${formatR(-line.costR)} · ${pluralTrades(line.tradeCount)} · ${caption}`,
     definition: `What ${line.label.toLowerCase()} cost over this period, after the Gap decided which pillar each trade belongs to.`,
+    scopeNote: null,
     formula: GAP_PILLAR_FORMULA[line.pillar] ?? '',
     source: 'CLAUDE.md §6.3 — Karat Gap',
     lines: [
@@ -398,6 +449,8 @@ function findingEntry(
   finding: Finding,
   byId: ReadonlyMap<string, EnrichedTrade>,
   currency: string,
+  period: string,
+  settings: EngineSettings,
 ): ExplainEntry {
   const { rows, note } = tradeRows(finding.tradeIds, byId, {
     order: finding.impactMoney > 0 ? 'best' : 'worst',
@@ -421,9 +474,10 @@ function findingEntry(
     title: finding.headline,
     value: formatMoney(finding.impactMoney, { currency, signed: true }),
     valueTone: finding.impactMoney >= 0 ? 'profit' : 'loss',
-    valueCaption: `${formatR(finding.impactR)} · ${pluralTrades(finding.tradeIds.length)}`,
+    valueCaption: `${formatR(finding.impactR)} · ${pluralTrades(finding.tradeIds.length)} · ${period} · unweighted`,
     definition:
       'A Refinery finding: a pattern the engine measured across your own trades. The sentence is a template filled from engine numbers — nothing here was estimated or written by a model.',
+    scopeNote: scopeNote(settings),
     formula:
       'Findings are ranked by the money at stake, costs and edges alike. Severity is the share of the total Karat Gap a finding carries: 40% or more is critical, 15% or more a warning.',
     source: 'CLAUDE.md §6.6, §10 — The Refinery',
@@ -463,6 +517,7 @@ function karatEntry(assay: AssayResult, windowCaption: string): ExplainEntry {
         : `${karat.tier?.label ?? ''} · ${windowCaption}`,
     definition:
       'How disciplined the last 30 days of manual trading were, on the scale real gold is measured on. It scores process, not outcome: a reckless profitable month scores low, and a disciplined losing month scores high.',
+    scopeNote: null,
     formula: `Karat = points ÷ 100 × 24, to one decimal. Points are the six pillars added together, scored over a rolling ${settings.rollingWindowDays}-day window with an exponential recency weight (half-life ${settings.recencyHalfLifeDays} days). Fewer than ${settings.minimumTrades} manual trades in the window and no score is shown.`,
     source: 'CLAUDE.md §6.1, §6.2 — Karat Score and tiers',
     lines,
@@ -511,6 +566,7 @@ function proofEntry(assay: AssayResult): ExplainEntry {
     valueCaption: `${proof.high.weekCount} disciplined weeks against ${proof.low.weekCount} impure ones`,
     definition:
       'Your own weeks, split by how disciplined they were, and what each group actually returned. It is not a claim about trading in general — it is a claim about you.',
+    scopeNote: null,
     formula: `Group manual trades by ISO week and score each week's own Karat, unweighted. Weeks at ${proof.highKarat}K and above go in one bucket, weeks under ${proof.lowKarat}K in the other; weeks with fewer than ${proof.minTradesPerWeek} trades are dropped. Compare the buckets' mean weekly R.`,
     source: 'CLAUDE.md §6.4 — Your Proof',
     lines,
@@ -520,6 +576,55 @@ function proofEntry(assay: AssayResult): ExplainEntry {
     rowsNote: null,
     confidence: null,
     note: `The card stays hidden unless each bucket holds at least ${proof.minWeeksPerBucket} weeks. With fewer, the difference is an anecdote.`,
+  };
+}
+
+function whatIfEntry(
+  assay: AssayResult,
+  byId: ReadonlyMap<string, EnrichedTrade>,
+  caption: string,
+): ExplainEntry | null {
+  const whatIf = assay.counterfactual;
+  const all = whatIf.scenarios.find((scenario) => scenario.key === 'all');
+  if (all === undefined) return null;
+
+  const money = (value: number): string =>
+    formatMoney(value, { currency: whatIf.currency, signed: true });
+  const tone = (value: number): ExplainTone => (value >= 0 ? 'profit' : 'loss');
+  const { rows, note } = tradeRows(all.removedTradeIds, byId);
+
+  return {
+    id: EXPLAIN_IDS.whatIf,
+    eyebrow: `What-if · ${whatIf.label}`,
+    title: 'Every impurity removed',
+    value: money(all.deltaMoney),
+    valueTone: tone(all.deltaMoney),
+    valueCaption: `${formatR(all.deltaR)} · ${pluralTrades(all.removedTradeCount)} removed · ${caption}`,
+    definition:
+      'The account as it actually finished, against the same account with every impurity trade taken out — the winners among them too. It answers one question: what would this account read if those trades had never been placed, and everything else had happened as it did?',
+    scopeNote: null,
+    formula: `${whatIf.method} A manual trade carrying any impurity is removed; EA trades never are.`,
+    source: 'CLAUDE.md §6.10 — Counterfactual',
+    lines: [
+      { label: 'Actual result', value: money(whatIf.actualEndMoney), tone: tone(whatIf.actualEndMoney) },
+      { label: 'Every impurity removed', value: money(all.endMoney), tone: tone(all.endMoney) },
+      { label: 'Difference', value: money(all.deltaMoney), tone: tone(all.deltaMoney) },
+      {
+        label: 'Trades removed',
+        value: `${all.removedTradeCount} · ${all.removedWins} won · ${all.removedLosses} lost`,
+      },
+      {
+        label: 'The Gap bills for the same trades',
+        value: formatMoney(-all.gapCostMoney, { currency: whatIf.currency, signed: true }),
+        tone: 'loss',
+      },
+    ],
+    linesTitle: 'Actual against counterfactual',
+    rows,
+    rowsTitle: rows.length > 0 ? 'The costliest trades removed' : null,
+    rowsNote: note,
+    confidence: null,
+    note: 'The Karat Gap is a bill, not a curve: it counts losses only, each trade once, to one pillar. The What-if removes whole trades, winners included. The two numbers are not supposed to match.',
   };
 }
 
@@ -568,8 +673,13 @@ export function buildExplainIndex(assay: AssayResult): ExplainIndex {
       finding,
       byId,
       assay.account.currency,
+      findingPeriodLabel(finding, assay),
+      assay.settings,
     );
   }
+
+  const whatIf = whatIfEntry(assay, byId, historyPeriodLabel(assay));
+  if (whatIf !== null) index[EXPLAIN_IDS.whatIf] = whatIf;
 
   if (assay.proof.visible) {
     index[EXPLAIN_IDS.proof] = proofEntry(assay);

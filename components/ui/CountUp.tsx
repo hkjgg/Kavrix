@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/cn';
 import { formatKarat, formatMoney, formatPct, formatR } from '@/lib/format';
+import { useSceneInView } from './Scene';
 
 /**
  * A number that counts up like a mechanical counter (CLAUDE.md §9).
@@ -15,6 +16,10 @@ import { formatKarat, formatMoney, formatPct, formatR } from '@/lib/format';
  *  - **The animation writes text, not state.** The value never changes except
  *    when a prop does, so driving it through React state would re-render the
  *    tree sixty times a second for nothing. The effect writes `textContent`.
+ *
+ * Inside a Scene (Stage 3.5) the counter waits for the scene to be seen, then
+ * starts after `delayMs`, so it can land on the same beat as the rest of the
+ * sequence. Outside one it runs on mount, as it always did.
  *
  * Under `prefers-reduced-motion` the number is simply there.
  */
@@ -87,6 +92,10 @@ export function CountUp({
   const decimals = digits ?? defaultDigits(kind);
   const withSign = signed ?? defaultSigned(kind);
   const final = formatCountUp(value, kind, decimals, withSign, currency);
+  const inView = useSceneInView();
+  // The delay is the counter's beat in its scene's arrival. After that first
+  // play, a new value (a toggle, say) counts straight away.
+  const played = useRef(false);
 
   useEffect(() => {
     const node = ref.current;
@@ -99,19 +108,28 @@ export function CountUp({
       return;
     }
 
-    let frame = 0;
-    let start: number | null = null;
     // Counting a negative number up from zero would run the wrong way, so the
     // sweep always travels from zero towards the value's own sign.
     const from = 0;
 
+    if (!inView) {
+      // Waiting for the scene: rest at the start, like the hand at its stop.
+      node.textContent = formatCountUp(from, kind, decimals, withSign, currency);
+      return;
+    }
+
+    let frame = 0;
+    let start: number | null = null;
+    const wait = played.current ? 0 : delayMs;
+
     const step = (now: number): void => {
       if (start === null) start = now;
-      const elapsed = now - start - delayMs;
+      const elapsed = now - start - wait;
       if (elapsed < 0) {
         frame = window.requestAnimationFrame(step);
         return;
       }
+      played.current = true;
       const t = durationMs <= 0 ? 1 : Math.min(elapsed / durationMs, 1);
       const current = from + (value - from) * easeOutCubic(t);
       node.textContent = formatCountUp(current, kind, decimals, withSign, currency);
@@ -125,7 +143,7 @@ export function CountUp({
       window.cancelAnimationFrame(frame);
       node.textContent = formatCountUp(value, kind, decimals, withSign, currency);
     };
-  }, [value, kind, decimals, withSign, currency, durationMs, delayMs]);
+  }, [value, kind, decimals, withSign, currency, durationMs, delayMs, inView]);
 
   return (
     <span ref={ref} className={cn('tabular-nums', className)}>

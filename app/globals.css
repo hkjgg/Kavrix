@@ -118,18 +118,18 @@
   }
 }
 
-/* Two layers: a solid gold base that never moves, and a highlight sweeping
-   across it. One layer alone leaves the glyphs transparent for most of the
-   cycle — a wordmark that disappears is not a sheen. */
+/* The highlight crosses the wordmark in the first quarter of the cycle and
+   rests out of sight for the remainder: a glint, not a loop. */
 @keyframes kavrix-sheen {
   0% {
     background-position:
-      -150% 0,
+      100% 0,
       0 0;
   }
+  28%,
   100% {
     background-position:
-      250% 0,
+      0% 0,
       0 0;
   }
 }
@@ -148,7 +148,9 @@
   animation: kavrix-metal-shift 8s ease-in-out infinite;
 }
 
-/* Same gradient, painted through the glyphs. */
+/* Same gradient, painted through the glyphs. Static: the metal is lit, not
+   animated — a value that shimmers forever is a value that never settles
+   (Stage 3.5, "luxury reads as stillness"). */
 @utility metal-gold-text {
   background-image: linear-gradient(
     135deg,
@@ -156,37 +158,42 @@
     var(--gold) 45%,
     var(--gold-deep) 100%
   );
-  background-size: 200% 200%;
-  background-position: 0% 50%;
-  animation: kavrix-metal-shift 8s ease-in-out infinite;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
-/* Slow gold sheen sweeping across text (the logo treatment). */
+/* The wordmark (Stage 3.5): solid gold at every instant, with a highlight
+   passing through it and then a long rest.
+
+   Both layers are opaque everywhere. The highlight layer is gold at both
+   ends — never `transparent` — and tiles horizontally, so wherever the band
+   happens to be, every glyph pixel is gold or brighter gold. The solid base
+   under it and the `color` fallback are belt and braces: if background-clip
+   is unsupported, the text is simply gold. */
 @utility sheen {
+  color: var(--gold);
   background-image:
     linear-gradient(
       100deg,
-      transparent 0%,
-      transparent 38%,
+      var(--gold) 0%,
+      var(--gold) 40%,
       var(--gold-light) 50%,
-      transparent 62%,
-      transparent 100%
+      var(--gold) 60%,
+      var(--gold) 100%
     ),
     linear-gradient(var(--gold), var(--gold));
   background-size:
-    250% 100%,
+    300% 100%,
     100% 100%;
-  background-repeat: no-repeat, no-repeat;
+  background-repeat: repeat-x, no-repeat;
   background-position:
-    -150% 0,
+    100% 0,
     0 0;
   -webkit-background-clip: text;
   background-clip: text;
-  color: transparent;
-  animation: kavrix-sheen 6s linear infinite;
+  -webkit-text-fill-color: transparent;
+  animation: kavrix-sheen 9s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
 /* Hairline gold border for the "engraved" feel. */
@@ -197,17 +204,16 @@
 /* CLAUDE.md §2: respect prefers-reduced-motion everywhere.
    The gradients stay — only the motion stops. */
 @media (prefers-reduced-motion: reduce) {
-  .metal-gold,
-  .metal-gold-text {
+  .metal-gold {
     animation: none;
     background-position: 50% 50%;
   }
 
-  /* The base layer stays; the highlight rests mid-sweep. */
+  /* Solid gold, the highlight parked off the glyphs. */
   .sheen {
     animation: none;
     background-position:
-      50% 0,
+      100% 0,
       0 0;
   }
 
@@ -294,4 +300,187 @@
 
 @utility drawer-in {
   animation: kavrix-drawer-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ---------------------------------------------------------------------------
+   Stage 3.5 — arrival choreography
+
+   Every section of the Assay is a `.scene`. Elements inside it carry an
+   `enter-*` class and, where the sequence needs it, a `--d` delay and a `--t`
+   duration inline. The animations are declared only when scripting is on and
+   motion is welcome, and they wait — paused on their first frame — until the
+   scene's IntersectionObserver marks it `data-inview`. Then each plays once.
+
+   Two guarantees follow from declaring them this way:
+   - **Without JavaScript**, or under `prefers-reduced-motion`, no animation
+     exists, so every element renders in its final state. The markup is the
+     truth; motion is applied afterwards, never required.
+   - **Nothing loops.** Every entrance has an iteration count of one.
+   --------------------------------------------------------------------------- */
+
+@keyframes kavrix-enter-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes kavrix-enter-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+/* A path with `pathLength="1"` and `stroke-dasharray: 1 1`, drawn from its start. */
+@keyframes kavrix-enter-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+/* A partial ring with `pathLength="1"` and `stroke-dasharray: <ratio> 1`. */
+@keyframes kavrix-enter-fill {
+  from {
+    stroke-dashoffset: var(--len, 1);
+  }
+}
+
+/* The Assay Dial's hand: from the 0K stop to the value. */
+@keyframes kavrix-enter-hand {
+  from {
+    transform: rotate(var(--hand-from, -135deg));
+  }
+  to {
+    transform: rotate(var(--hand-to, 0deg));
+  }
+}
+
+/* One bright pass across the bezel, then gone. The element's own opacity is 0. */
+@keyframes kavrix-bezel-sweep {
+  0% {
+    stroke-dashoffset: 0.14;
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.9;
+  }
+  80% {
+    opacity: 0.9;
+  }
+  100% {
+    stroke-dashoffset: -1;
+    opacity: 0;
+  }
+}
+
+/* A serif numeral engraved stroke first, then filled. */
+@keyframes kavrix-enter-engrave {
+  0% {
+    stroke-dashoffset: var(--dash, 320);
+    fill-opacity: 0;
+  }
+  60% {
+    fill-opacity: 0;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Revealed left to right. */
+@keyframes kavrix-enter-wipe {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* A disciplined week: dim like the rest, then resolving to bright gold. */
+@keyframes kavrix-enter-resolve {
+  0% {
+    opacity: 0;
+    background-color: var(--gold-deep);
+  }
+  30% {
+    opacity: 0.45;
+    background-color: var(--gold-deep);
+  }
+}
+
+/* The in-place pillar detail. Work, not cinema: 260 ms and done. */
+@keyframes kavrix-resolve-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@utility resolve-in {
+  animation: kavrix-resolve-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+  .enter-fade {
+    animation: kavrix-enter-fade var(--t, 500ms) cubic-bezier(0.22, 1, 0.36, 1)
+      var(--d, 0ms) 1 both;
+  }
+
+  .enter-rise {
+    animation: kavrix-enter-rise var(--t, 700ms) cubic-bezier(0.22, 1, 0.36, 1)
+      var(--d, 0ms) 1 both;
+  }
+
+  .enter-draw {
+    stroke-dasharray: 1 1;
+    animation: kavrix-enter-draw var(--t, 600ms) var(--ease, cubic-bezier(0.65, 0, 0.35, 1))
+      var(--d, 0ms) 1 both;
+  }
+
+  .enter-fill {
+    animation: kavrix-enter-fill var(--t, 600ms) cubic-bezier(0.33, 1, 0.68, 1)
+      var(--d, 0ms) 1 both;
+  }
+
+  .enter-hand {
+    animation: kavrix-enter-hand var(--t, 1200ms) cubic-bezier(0.16, 1, 0.3, 1)
+      var(--d, 0ms) 1 both;
+  }
+
+  .enter-sweep {
+    animation: kavrix-bezel-sweep var(--t, 700ms) cubic-bezier(0.45, 0, 0.55, 1)
+      var(--d, 0ms) 1 both;
+  }
+
+  .enter-engrave {
+    stroke-dasharray: var(--dash, 320);
+    animation: kavrix-enter-engrave var(--t, 900ms) cubic-bezier(0.45, 0, 0.55, 1)
+      var(--d, 0ms) 1 both;
+  }
+
+  .enter-wipe {
+    animation: kavrix-enter-wipe var(--t, 1400ms) cubic-bezier(0.45, 0, 0.55, 1)
+      var(--d, 0ms) 1 both;
+  }
+
+  .enter-resolve {
+    animation: kavrix-enter-resolve var(--t, 900ms) ease-out var(--d, 0ms) 1 both;
+  }
+
+  /* Waiting in the wings: held on the first frame until the scene is seen. */
+  .scene:not([data-inview])
+    :is(
+      .enter-fade,
+      .enter-rise,
+      .enter-draw,
+      .enter-fill,
+      .enter-hand,
+      .enter-sweep,
+      .enter-engrave,
+      .enter-wipe,
+      .enter-resolve
+    ) {
+    animation-play-state: paused;
+  }
 }

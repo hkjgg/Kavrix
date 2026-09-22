@@ -28,3 +28,5 @@ export type {
   TableProps,
   TableRowProps,
 } from './Table';
+export { Scene, useSceneInView } from './Scene';
+export type { SceneProps } from './Scene';

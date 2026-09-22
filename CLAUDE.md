@@ -288,16 +288,52 @@ Per EA (grouped by **magic number**), shown in **Constellation**.
 
 All are custom SVG React components in `components/viz/`, driven by engine output only.
 
-1. **AssayDial** — watch face. Guilloché background, gold bezel, 0–24K scale over a 270° arc,
-   tier arc segments, serif numerals at 0/10/14/18/22/24. Gold hand sweeps from 0 to the value
-   on mount (~2.6 s, eased). Center: Karat value (serif, gold), tier label, delta vs last week.
-2. **PillarRings** — six small rings (points / max) under the dial; click → pillar deductions.
-3. **GoldClock** — 24h radial dial (UTC). Angle = entry time; radius = R result (0R ring dashed).
+**The Assay Instrument (Stage 3.5).** The dial and the pillar rings are not two widgets but one
+composition — a measuring instrument and its sub-dials — built in `components/assay/AssayInstrument.tsx`
+with its geometry and timing in `components/viz/instrument.ts`:
+
+- **Centre:** the AssayDial (below), 48% of the square stage.
+- **Six sub-dials** (PillarRings, below) fixed at 12, 2, 4, 6, 8 and 10 o'clock, in engine pillar
+  order (Risk at 12, clockwise), each wired to the dial's centre by a thin gold hairline arm.
+- **The reserved outer ring.** A thin, dark band with faint hairline edges round the whole
+  instrument, **deliberately empty**. It is where Stage 4's 24-hour trade clock (the GoldClock,
+  item 3) lives. Nothing else may be drawn in it; the code carries a comment saying so.
+- **Hover or focus** a sub-dial: its arm brightens, its ring lifts, and its deduction summary
+  appears beside it. Nothing else moves.
+- **Select** a sub-dial: the instrument transforms in place rather than opening a modal. The
+  outer ring and the other five sub-dials dim and shrink slightly, the chosen one is drawn in
+  towards the centre and scaled up, and its explanation (formula, deductions, trades — the same
+  `ExplainEntry` the drawer shows, rendered by the same `ExplainBody`) resolves beside the
+  instrument. Esc, the close button or the centre of the dial restores it.
+- **At phone width** the instrument stacks: the dial, then the sub-dials in a two-column grid,
+  then the explanation. The ring and the arms are not drawn — they only mean something in the round.
+- **Arrival**, ~2.3 s, once, when the section scrolls into view: face and guilloché fade in → one
+  highlight sweeps across the bezel → tier arcs draw clockwise → ticks and numerals → the six arms
+  extend from the centre → the sub-dial rings fill clockwise, 60 ms apart → the hand sweeps 0 →
+  value while the readout counts up. Under `prefers-reduced-motion`, or without JavaScript,
+  everything is simply in place.
+
+1. **AssayDial** — watch face, SVG gradients and filters only. Bezel in three machined layers
+   (dark outer edge, brushed metal ring lit from the upper left, inner chamfer catching the light);
+   a face darkening towards the rim, a guilloché rosette, a faint specular sheen upper left;
+   0–24K scale over a 270° arc, tier arc segments in the gold family, short crisp minor ticks and
+   an applied index under each serif numeral at 0/10/14/18/22/24. A tapered, faceted hand with a
+   counterweight past the centre and a soft offset shadow, sweeping from 0 to the value as the
+   last beat of the arrival. A raised centre medallion holds the readout — Karat value (serif,
+   gold) above the polished centre cap, tier label and delta vs last week below it — and the hand
+   passes *behind* the medallion, so the value is never crossed by a moving part.
+2. **PillarRings** — the six sub-dials of the instrument (points / max), every value labelled
+   `30-day · recency-weighted`; select one → its deductions in place.
+3. **GoldClock** — 24h radial dial (UTC), drawn in the instrument's reserved outer ring.
+   Angle = entry time; radius = R result (0R ring dashed).
    Session arcs (Asia slate, London gold, New York bronze) outside the dial; dashed amber lines
    for high-impact USD news; jade/oxblood dots fade in sequentially. Center shows best window.
 4. **PurityLine** — equity curve as a gold line whose brightness/saturation = rolling Karat
    at that point (bright gold = disciplined, dull = impure). Impurity trades marked with small stamps.
 5. **Refinery** — two bullion bars: actual P&L vs 24K counterfactual; gap segmented by pillar.
+   (On the Assay this is scene `03 — The Gap`: the account's actual result and the §6.10
+   "every impurity removed" figure, the difference engraved between them, the Karat Gap bill
+   and its per-pillar breakdown beneath. Always labelled "Counterfactual, not a promise".)
 6. **Hallmark** — a unique 32 px radial glyph per trade encoding 6 dimensions: R result, risk%,
    duration, session, news proximity, SL compliance. Deterministic from trade data. Used in the Ledger.
 7. **VaultCalendar** — each day is a small ingot filled by daily P&L, engraved with the day's Karat;
@@ -444,8 +480,11 @@ app/
   (app)/assay | ledger | trade/[id] | vault | constellation | wrapped | settings
   api/ingest | api/ai
 components/
-  viz/                        AssayDial, PillarRings, GoldClock, PurityLine, Refinery,
+  viz/                        AssayDial, GoldClock, PurityLine, Refinery,
                               Hallmark, VaultCalendar, Constellation, AssayCertificate
+                              (+ pure geometry: dial.ts, instrument.ts, rings.ts)
+  assay/                      the Assay page: AssayInstrument (dial + PillarRings sub-dials),
+                              scenes, Explain drawer
   ui/                         primitives (Card, Label, Stat, Button, Table)
 lib/
   engine/                     trades, sessions, news, karat, gap, proof, fineness, correlation,
@@ -479,7 +518,10 @@ connector/                    KavrixConnector.mq5 + README
 - [x] 3 — Assay dashboard (Dial, Pillars, Gap, Refinery, Proof)
   - **"Explain this number"**: every metric on every surface opens its formula, the trades
     behind it and its §6.6 confidence. Calm and factual — it explains, it does not reassure.
+- [x] 3.5 — The Assay instrument: dial craft, the six sub-dials wired to it, the reserved outer
+  ring, four scroll-triggered scenes, and a scope label on every pillar value and finding
 - [ ] 4 — Gold Clock + Purity Line + Vault
+  - **The Gold Clock goes in the instrument's reserved outer ring** (§8), not beside it.
   - **What-if toggle on the Purity Line** (§6.10), carrying the "Counterfactual, not a promise"
     label wherever it is drawn.
   - **Discipline Replay opens from a day in the Vault** (§6.11).
@@ -1124,3 +1166,107 @@ by the product working fully without a model.
 Assay is the first one — but it is also the only one, and the styleguide is still the only place
 `Table`, `Badge` and `Button` are exercised. Suggest deleting it at Stage 5, when the Ledger
 gives the table primitives a real home.
+
+### Stage 3.5 — The Assay instrument ✅ (2026-09-22)
+
+Craft and staging only. **No engine change, no new metric, no new data**: `lib/` is untouched,
+and every figure on `/demo` is the one Stage 3 showed, or (the bullion bars) one the engine
+already computed in `counterfactual.ts`. 410 tests pass, lint and typecheck are clean.
+
+**What exists now**
+- `components/assay/AssayInstrument.tsx` — the instrument (§8): the dial, the six sub-dials
+  wired to it, the reserved outer ring, hover summaries and the in-place pillar explanation.
+  It replaces `KaratCard` and `PillarRings.tsx`, which are deleted.
+- `components/viz/instrument.ts` — pure: sub-dial placement (clock hour → stage percent, label
+  side, summary side, arm endpoints, focus pull), the reserved ring's radii, and the arrival
+  timeline (`ARRIVAL`, `tierArcBeat`, `ringBeat`, `beatStyle`).
+- `components/viz/AssayDial.tsx` — rewritten for material: three-layer bezel, face depth,
+  guilloché, sheen, applied indices, faceted hand with counterweight and shadow, raised
+  medallion, polished cap. No `useEffect` any more — the sweep is CSS.
+- `components/ui/Scene.tsx` — a section that marks itself `data-inview` the first time it is
+  seen, once; `useSceneInView()` lets the counters wait for it.
+- `components/assay/RefineryScene.tsx`, `GapScene.tsx`, `ProofScene.tsx` — scenes 02–04,
+  replacing `RefineryCard`, `ProofCard` and the Gap card's place in the old grid.
+  `GapCard` stays as the bill beneath the bullion bars, its figure set at 36 px.
+- `components/assay/ExplainBody.tsx` — the drawer's content, extracted so the drawer and the
+  instrument render one `ExplainEntry` identically.
+- `explain.ts` gained `pillarScopeLabel`, `scopeNote`, `historyPeriodLabel`,
+  `findingPeriodLabel` and a `what-if` entry for the bars; `ExplainEntry` gained `scopeNote`;
+  `ExplainProvider` gained `get(id)`.
+- `app/globals.css` — the arrival system (below), a static `metal-gold-text`, and a wordmark
+  sheen that is opaque at every instant.
+- 32 new Vitest cases: `instrument.test.ts` (geometry and timing, hand-checked), `explain.test.ts`
+  (scope labels, the shared sentence, the What-if entry against the engine), and additions to
+  the page and dial render tests. **410 tests in total.**
+
+**Decisions taken**
+- **Motion is declared in CSS, not driven from React.** Every entrance is an `enter-*` class
+  with its beat as `--d`/`--t` inline. The keyframes exist only inside
+  `@media (scripting: enabled) and (prefers-reduced-motion: no-preference)`, and are held on
+  their first frame until the scene is `data-inview`. So the server markup *is* the finished
+  instrument: with reduced motion there is literally no animation on the page (verified:
+  `document.getAnimations()` is empty), and the hand's inline `rotate(124.875deg)` is the
+  truth the animation sweeps up to. Nothing loops except the wordmark's glint.
+- **Luxury reads as stillness.** `metal-gold-text` no longer shifts forever; the Karat numeral is
+  lit metal, not a screensaver. The wordmark's sheen passes in the first quarter of a 9 s cycle
+  and rests for the rest.
+- **The wordmark can no longer go transparent.** Both background layers are opaque everywhere —
+  the highlight layer is gold at both ends and tiles, the base under it is solid gold, and
+  `color: var(--gold)` is the fallback. Sampled across a cycle in Chromium: the glyphs hold the
+  same gold pixel count in every frame.
+- **The hand passes behind the medallion, and the cap sits on it.** A centre cap and a readout
+  both at the pivot collide, so the readout is set the way a watch dial sets text round its
+  pinion: the value above the cap, tier and delta below. The blade shows in the annulus, the
+  counterweight opposite it.
+- **Large blurs are gradients.** The rim shadow, the sheen and the medallion's cast shadow were
+  first built with `feGaussianBlur` over most of the face, which made every repaint of the dial
+  expensive — a hover summary fading in over it visibly lagged in software rendering. They are
+  radial gradients now, and the dial sits on its own compositor layer (`will-change`), so
+  nothing passing over it forces a repaint of the guilloché.
+- **SVG text takes the serif through the `font-serif` utility.** `var(--font-serif)` in a
+  presentation attribute resolved to nothing — `@theme inline` inlines that token rather than
+  emitting it — so the Stage 3 dial numerals had silently been set in the sans. Fixed on the
+  dial and the Refinery numerals.
+- **Hover summaries open towards the instrument**, over the dial's edge if they must. Opening
+  outward would run a left-hand summary off the screen at 1280 px.
+- **The in-place explanation takes focus**, and focus returns to its sub-dial on Esc, on the
+  close button, or on the centre of the dial. It is a disclosure, not a dialog: the page stays
+  usable, so there is no focus trap.
+- **Every pillar value says `30-day · recency-weighted`; every finding says its period.** The
+  sub-dials print it, their accessible names carry it, the pillar drawer's caption starts with
+  it, and the finding caption ends `90 days · 2026-06-22 → 2026-09-20 · unweighted`. Both
+  drawers carry one sentence on why the two can disagree. The window length is read from
+  `settings.rollingWindowDays`, not written in.
+- **The counterfactual bar is the 24K bar.** Pure, bright metal for "every impurity removed",
+  the alloy for the actual result; lengths proportional to the value (floor 20%), a hollow
+  outline for a result below zero. The metaphor is purity, not size, so it holds for an
+  account that would come out worse.
+
+**Lighthouse** (production build, `next start`, headless Chromium)
+
+| | Performance | Accessibility | Best practices | SEO |
+|---|---|---|---|---|
+| Desktop | **100** | **100** | **100** | **100** |
+| Mobile | **93–98** | **100** | **100** | **100** |
+
+Mobile over two runs: FCP 0.9–1.0 s · LCP 2.1–2.8 s · TBT 120–180 ms · CLS 0.004. TBT is up
+from Stage 3's 90 ms — the instrument is client code, where the pillar rings were not.
+
+**Verified in a real browser** (Puppeteer on Chromium): the arrival plays in order frame by
+frame; hover shows the summary and lights the arm; select transforms in place and moves focus to
+the explanation; Esc and the centre both restore and return focus; the Karat still opens the
+drawer; the finding drawer shows the scope sentence; no horizontal scroll at 375 px or 1440 px;
+the stacked phone layout opens the explanation under the grid.
+
+**Left standing, for the product owner to call**
+1. **`/demo` without JavaScript shows "Assaying…", not the page.** This predates Stage 3.5:
+   `app/demo/loading.tsx` makes Next stream the prerendered page into a `<div hidden>` that an
+   inline script reveals. Everything this stage adds renders final without JavaScript, but the
+   Stage 3 note claiming the same for the whole page is not true while `loading.tsx` exists.
+   Deleting it (the route is static, so the fallback only matters on client navigation) would
+   fix it — not done here, because it is outside this stage.
+2. **§6.10 says the Gap is "always the smaller" than the What-if. On the demo it is not**: over
+   90 days the Gap bills $26,700.37 for the same trades whose removal moves the curve by
+   +$17,108.24, because the What-if also removes 42 winners. The copy on the page says only that
+   the two are not supposed to match. §6.10's sentence probably means "smaller than the removed
+   trades' losses" and wants rewording.

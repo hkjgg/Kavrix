@@ -9,7 +9,9 @@ import { ExplainButton } from './ExplainButton';
 
 /**
  * The Karat Gap card (CLAUDE.md §6.3, §8.5) — what indiscipline cost, in money
- * and in R, segmented by the pillar each trade was billed to.
+ * and in R, segmented by the pillar each trade was billed to. In the Gap scene
+ * (Stage 3.5) it is the *bill* beneath the bullion bars: the total on the
+ * left, set smaller than the Karat, and the per-pillar breakdown on the right.
  *
  * The bar is oxblood throughout, shaded per pillar: the Gap is a loss, and §9
  * reserves oxblood for exactly that. Using four unrelated hues would make a
@@ -58,9 +60,11 @@ function shade(pillar: string): string {
 
 export interface GapCardProps {
   scopes: readonly GapScopeView[];
+  /** When the counters start, once the scene is seen — its beat in the sequence. */
+  countDelayMs?: number;
 }
 
-export function GapCard({ scopes }: GapCardProps) {
+export function GapCard({ scopes, countDelayMs = 0 }: GapCardProps) {
   const [scopeKey, setScopeKey] = useState<GapScopeKey>('window');
   const scope = scopes.find((item) => item.key === scopeKey) ?? scopes[0];
   if (scope === undefined) return null;
@@ -68,9 +72,10 @@ export function GapCard({ scopes }: GapCardProps) {
   const total = scope.lines.reduce((sum, line) => sum + line.costMoney, 0);
 
   return (
-    <Card className="flex flex-col gap-6">
+    <Card className="grid grid-cols-1 gap-8 p-6 sm:p-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-14">
+      <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <Label>Karat Gap</Label>
+        <Label>Karat Gap · the bill</Label>
         <div
           role="group"
           aria-label="Karat Gap period"
@@ -108,22 +113,32 @@ export function GapCard({ scopes }: GapCardProps) {
           bare
           className="self-start"
         >
-          <span className="font-serif text-5xl leading-none text-oxblood-text sm:text-6xl">
+          <span className="font-serif text-4xl leading-none text-oxblood-text">
             <CountUp
               value={-scope.totalMoney}
               kind="money"
               currency={scope.currency}
               signed
-              durationMs={1800}
+              durationMs={1400}
+              delayMs={countDelayMs}
             />
           </span>
         </ExplainButton>
         <span className="font-mono text-xs text-text-3">
-          <CountUp value={-scope.totalR} kind="r" durationMs={1800} /> ·{' '}
+          <CountUp value={-scope.totalR} kind="r" durationMs={1400} delayMs={countDelayMs} /> ·{' '}
           {scope.impurityCount} impurity trades of {scope.tradeCount} manual ·{' '}
           {scope.caption}
         </span>
       </div>
+
+      <p className="text-xs leading-relaxed text-text-3">
+        A bill, not a curve: losses only, each trade billed once, to one pillar. The
+        bars above remove whole trades, winners included, so the two numbers are not
+        supposed to match.
+      </p>
+      </div>
+
+      <div className="flex flex-col gap-6 lg:pt-1">
 
       {/* Segmented bar, by pillar. */}
       <div
@@ -191,6 +206,7 @@ export function GapCard({ scopes }: GapCardProps) {
           </li>
         ))}
       </ul>
+      </div>
     </Card>
   );
 }

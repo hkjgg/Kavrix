@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { getDemoAssay } from '@/lib/demo/assay';
+import { findingPeriodLabel } from '@/components/assay/explain';
 import { formatKarat, formatMoney } from '@/lib/format';
 import DemoPage from './page';
 
@@ -47,6 +48,30 @@ describe('/demo', () => {
     }
   });
 
+  it('labels every pillar value with its window and weighting', () => {
+    const labels = markup.match(/30-day · recency-weighted/g) ?? [];
+    // Six sub-dials, each with a visible label and an accessible name, plus the reading.
+    expect(labels.length).toBeGreaterThanOrEqual(assay.karat.pillars.length * 2);
+    for (const pillar of assay.karat.pillars) {
+      expect(markup).toContain(
+        `${pillar.label}, ${pillar.points.toFixed(1)} of ${pillar.maxPoints} points, 30-day · recency-weighted`,
+      );
+    }
+  });
+
+  it('wires every sub-dial to the in-place explanation, closed on arrival', () => {
+    expect(markup.match(/aria-expanded="false"/g)?.length).toBe(assay.karat.pillars.length);
+    expect(markup).not.toContain('aria-expanded="true"');
+  });
+
+  it('draws the instrument in its final state, so nothing depends on the arrival playing', () => {
+    // The sequence is declared in CSS and only runs once a scene is seen;
+    // the markup itself is already the finished instrument.
+    expect(markup).toContain('class="scene"');
+    expect(markup).not.toContain('data-inview');
+    expect(markup).toContain('--hand-to:124.875deg');
+  });
+
   it('shows the Karat Gap for the 30-day window', () => {
     expect(markup).toContain(
       formatMoney(-assay.gap.totalCostMoney, {
@@ -65,6 +90,25 @@ describe('/demo', () => {
     }
   });
 
+  it('labels each finding with its own period', () => {
+    for (const finding of assay.refinery) {
+      expect(markup).toContain(`${findingPeriodLabel(finding, assay)} · unweighted`);
+    }
+  });
+
+  it('sets the Gap as two bullion bars and the difference between them', () => {
+    const all = assay.counterfactual.scenarios.find((scenario) => scenario.key === 'all');
+    if (all === undefined) throw new Error('no "every impurity" scenario');
+    const money = (value: number): string => formatMoney(value, { currency: 'USD', signed: true });
+
+    expect(markup).toContain('Actual result');
+    expect(markup).toContain(money(assay.counterfactual.actualEndMoney));
+    expect(markup).toContain('Every impurity removed');
+    expect(markup).toContain(money(all.endMoney));
+    expect(markup).toContain(money(all.deltaMoney));
+    expect(markup).toContain('Counterfactual, not a promise');
+  });
+
   it('shows Your Proof with the difference between the buckets', () => {
     expect(assay.proof.visible).toBe(true);
     expect(markup).toContain('Discipline paid you');
@@ -77,6 +121,17 @@ describe('/demo', () => {
     expect(markup).toContain('Last 30 days');
     expect(markup).toContain('01 \u2014');
     expect(markup).toContain('The Assay');
+  });
+
+  it('introduces each scene with its editorial heading, in order', () => {
+    const positions = ['The Assay', 'The Refinery', 'The Gap', 'Your Proof'].map((title) =>
+      markup.indexOf(`<span>${title}</span>`),
+    );
+    for (const position of positions) expect(position).toBeGreaterThan(-1);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    for (const number of ['01', '02', '03', '04']) {
+      expect(markup).toContain(`${number} \u2014`);
+    }
   });
 
   it('leaves the surfaces that do not exist yet disabled rather than broken', () => {

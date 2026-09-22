@@ -31,9 +31,6 @@ export const DIAL_MAJOR_VALUES: readonly number[] = [0, 10, 14, 18, 22, 24];
 /** Minor ticks every 0.25K (§8.1). */
 export const DIAL_MINOR_STEP = 0.25;
 
-/** Duration of the hand sweep on mount, in ms (§8.1: ~2.6 s). */
-export const DIAL_SWEEP_MS = 2600;
-
 /**
  * Angle of a Karat value on the face.
  *
