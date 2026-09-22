@@ -60,13 +60,39 @@ export function computeKaratSeries(
     dayCounts.set(trade.dayKey, (dayCounts.get(trade.dayKey) ?? 0) + 1);
   }
 
+  // `manual` is in entry order, so the rolling window is a contiguous slice
+  // whose two ends only ever move forward. Walking them keeps the series
+  // linear in the number of trades instead of re-filtering the whole account
+  // once per day — the same trades are scored either way.
+  const windowMs = settings.rollingWindowDays * DAY_MS;
+  let windowStart = 0;
+  let windowEnd = 0;
+
   for (
     let dayMs = dayStartMs(firstMs);
     dayMs <= dayStartMs(asOfMs);
     dayMs += DAY_MS
   ) {
     const endOfDay = Math.min(dayMs + DAY_MS - 1, asOfMs);
-    const result = computeKarat(manual, settings, endOfDay);
+    const windowStartMs = endOfDay - windowMs;
+    while (
+      windowEnd < manual.length &&
+      (manual[windowEnd]?.openTimeMs ?? 0) <= endOfDay
+    ) {
+      windowEnd += 1;
+    }
+    while (
+      windowStart < windowEnd &&
+      (manual[windowStart]?.openTimeMs ?? 0) <= windowStartMs
+    ) {
+      windowStart += 1;
+    }
+    const result = computeKarat(
+      manual.slice(windowStart, windowEnd),
+      settings,
+      endOfDay,
+      { preWindowed: true },
+    );
     const key = dayKey(dayMs);
     points.push({
       date: key,

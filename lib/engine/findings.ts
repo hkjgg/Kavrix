@@ -12,6 +12,9 @@
  */
 
 import { formatMoney, formatPct, formatR } from '@/lib/format';
+import type { BaselinesResult } from './baselines';
+import type { ConfidenceResult } from './confidence';
+import { describeTrades } from './confidence';
 import type { ConstellationResult } from './ea';
 import type { EnrichedTrade } from './enrich';
 import { manualTrades } from './enrich';
@@ -32,7 +35,8 @@ export type FindingKind =
   | 'no-stop'
   | 'exit-overrun'
   | 'ea-drift'
-  | 'ea-same-bet';
+  | 'ea-same-bet'
+  | 'outside-normal';
 
 /** `strength` is an edge to protect; the rest are costs, by size. */
 export type FindingSeverity = 'critical' | 'warning' | 'note' | 'strength';
@@ -51,6 +55,17 @@ export interface Finding {
   tradeIds: string[];
   /** 1-based, by absolute money at stake. */
   rank: number;
+  /**
+   * How much weight the finding's own trades carry (§6.6). `null` when the
+   * finding has no trade sample to measure — a correlation between two EAs is
+   * a real claim, but it is not a claim about a mean R.
+   */
+  confidence: ConfidenceResult | null;
+  /**
+   * Weak evidence, or none. Tentative findings stay in the data and are shown
+   * marked as such; they never lead the Refinery (§6.6).
+   */
+  tentative: boolean;
 }
 
 export interface FindingsInput {
@@ -59,9 +74,12 @@ export interface FindingsInput {
   constellation: ConstellationResult;
   settings: EngineSettings;
   currency?: string;
+  /** Personal baselines (§6.7). Their "outside your normal" lines join the list. */
+  baselines?: BaselinesResult;
 }
 
-interface Draft extends Omit<Finding, 'rank' | 'severity'> {
+interface Draft
+  extends Omit<Finding, 'rank' | 'severity' | 'confidence' | 'tentative'> {
   severity?: FindingSeverity;
 }
 
@@ -374,15 +392,56 @@ export function computeFindings(input: FindingsInput): Finding[] {
     });
   }
 
+  /* — Outside your normal (§6.7) — */
+  for (const baseline of input.baselines?.findings ?? []) {
+    drafts.push({
+      id: baseline.id,
+      kind: 'outside-normal',
+      headline: baseline.headline,
+      impactMoney: baseline.impactMoney,
+      impactR: baseline.impactR,
+      metrics: {
+        metric: baseline.metric,
+        trades: baseline.tradeIds.length,
+        recentDays: input.baselines?.recentDays ?? 0,
+      },
+      tradeIds: baseline.tradeIds,
+    });
+  }
+
+  const byId = new Map(input.trades.map((trade) => [trade.id, trade]));
+
   return drafts
     .slice()
     .sort(
       (x, y) =>
         Math.abs(y.impactMoney) - Math.abs(x.impactMoney) || x.id.localeCompare(y.id),
     )
-    .map((draft, index) => ({
-      ...draft,
-      severity: draft.severity ?? severityFor(draft.impactMoney, gap.totalCostMoney),
-      rank: index + 1,
-    }));
+    .map((draft, index) => {
+      const sample = draft.tradeIds
+        .map((id) => byId.get(id))
+        .filter((trade): trade is EnrichedTrade => trade !== undefined);
+      const confidence =
+        sample.length === 0 ? null : describeTrades(sample, { settings });
+      return {
+        ...draft,
+        severity: draft.severity ?? severityFor(draft.impactMoney, gap.totalCostMoney),
+        rank: index + 1,
+        confidence,
+        // No sample is not weak evidence, it is no evidence of this kind — and
+        // either way it does not lead the Refinery (§6.6).
+        tentative: confidence === null || confidence.tentative,
+      };
+    });
+}
+
+/**
+ * The Refinery's top three (CLAUDE.md §6.6, §10).
+ *
+ * Only Strong or Moderate findings may lead. A tentative finding is still in
+ * `findings`, flagged, and the UI shows it as tentative — but the three lines
+ * the dashboard puts in front of somebody have to be ones the data supports.
+ */
+export function refineryTop(findings: readonly Finding[], count = 3): Finding[] {
+  return findings.filter((finding) => !finding.tentative).slice(0, count);
 }

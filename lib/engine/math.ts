@@ -132,3 +132,26 @@ export function cumulative(values: readonly number[]): number[] {
   }
   return out;
 }
+
+/**
+ * Quantile of a sample, by linear interpolation between order statistics
+ * (the "type 7" definition, the same one R and NumPy use by default).
+ *
+ * `quantile(values, 0.9)` over ten sorted values reads `v[8] + 0.1 × (v[9] −
+ * v[8])`, which is what makes a p90 in a test checkable by hand.
+ *
+ * `0` when empty, so a personal baseline over an empty history is a number
+ * rather than `NaN`.
+ */
+export function quantile(values: readonly number[], q: number): number {
+  if (values.length === 0) return 0;
+  const sorted = values.slice().sort((a, b) => a - b);
+  if (sorted.length === 1) return sorted[0] ?? 0;
+  const position = clamp(q, 0, 1) * (sorted.length - 1);
+  const lower = Math.floor(position);
+  const upper = Math.ceil(position);
+  const low = sorted[lower] ?? 0;
+  if (lower === upper) return low;
+  const high = sorted[upper] ?? low;
+  return low + (position - lower) * (high - low);
+}

@@ -147,6 +147,121 @@ and the difference ("Discipline paid you X R a week"). Hide the card unless each
 Every pillar exposes `{ points, maxPoints, deductions: [{ reason, tradeIds[], pointsLost }] }`.
 UI copy example: `−3.2 Revenge · 2 trades opened within 8 min after a loss` → click opens those trades.
 
+> **§6.6–§6.12 — statistical intelligence (Stage 2.5).** The principle for all of them: **with a few hundred trades, rigorous statistics beat
+> machine learning. Never present a pattern the data cannot support.** None of this changes a
+> Karat formula — §6.1–§6.5 are untouched by every module below.
+
+### 6.6 Confidence
+Every group of trades the engine reports carries: `n`, mean R, a **95% confidence interval** of
+mean R, win rate, and a **Wilson** interval around the win rate.
+
+- The interval is a **deterministic seeded bootstrap**, percentile method, **2,000 resamples**.
+  The stream is seeded from the sample itself, so the same group always produces the same
+  interval and two different groups never share a stream. Nothing reads `Math.random`.
+- The same bootstrap is read at the 10th/90th percentile for the 80% interval, and gives a
+  two-sided **bootstrap p-value** for "the mean is 0", floored at `1 / (resamples + 1)`.
+- **Resample budget.** A bootstrap costs `resamples × n`, and one run scores dozens of groups.
+  Every group up to **200 trades** — which is every cell on the accounts this product is built
+  for — gets the full 2,000. Past that the count tapers to a floor of 200, because `resamples`
+  controls the Monte Carlo error of the *endpoints* and by then the interval itself is narrow.
+  Configurable: `bootstrapResamples`, `bootstrapMinResamples`, `bootstrapSampleBudget`.
+
+| Label | Rule |
+|---|---|
+| **Strong** | n ≥ 20 **and** the 95% interval excludes 0 |
+| **Moderate** | n ≥ 10 **and** the 80% interval excludes 0 |
+| **Weak** | anything else |
+
+Confidence is attached to **every finding** and **every stats breakdown** (session, hour,
+weekday). The **Refinery's top 3 may only use Strong or Moderate findings**; Weak ones stay in
+the data flagged `tentative` and are shown marked as such. A finding with no trade sample
+(EA correlation) carries `confidence: null` and is tentative — it makes a real claim, but not a
+claim about a mean R, so it does not lead.
+
+### 6.7 Personal baselines
+Median and **p90** of the trader's own **lot size, risk %, trades per day, holding time**
+(`quantile` = linear interpolation, the R/NumPy type-7 definition).
+
+- The baseline is everything **before** the recent window (default 7 days). A window compared
+  against a history containing it hides exactly the change the card exists to show.
+- A metric is **"outside your normal"** when the recent window's **median** exceeds the
+  baseline p90. One oversized lot is an event; a week whose typical lot is past the p90 of every
+  week before it is a change of behaviour. Individual exceedances still ride along for the UI.
+- Needs 20 baseline trades before it claims anybody's normal.
+- **Findings only.** Karat keeps the configured thresholds (§6.1); nothing here touches a
+  pillar, a deduction or the Gap.
+
+### 6.8 Edge Map
+Manual trades grouped by **pre-trade** conditions only — nothing a trade did after it was
+opened may define a cell.
+
+| Dimension | Cells |
+|---|---|
+| Session | each session's **open** (first 3 hours) and its remainder, plus hours no session covers. Sessions overlap, so a trade can be in two |
+| Weekday | Sunday–Saturday (UTC) |
+| News proximity | in the window (±15 min) · 15–60 min from a release · clear |
+| Context | first of day · after a win · after a loss · no previous trade (exclusive, in that order) |
+
+- Cells need **n ≥ 8** or they are not tested at all.
+- Ranked by mean R with §6.6 confidence.
+- **Benjamini–Hochberg** across every tested cell at α = 0.05 before anything is labelled
+  Strong. Twenty cells at α = 0.05 means one looks significant by luck; a cell that would read
+  Strong alone but did not survive the correction drops to Moderate.
+- Output: **top 3 strengths** and **top 3 weaknesses**, Weak cells excluded from both.
+
+### 6.9 Similar Trades
+**k = 12** nearest neighbours of a trade, on **entry-time information only**.
+
+- Features: UTC hour and weekday (encoded on a circle, so 23:00 and 01:00 are two hours apart),
+  session flags, news proximity, previous-trade result, risk %, direction, volatility at entry.
+  No R, no MFE/MAE, no duration, no outcome.
+- *Volatility at entry* is the standard deviation of the per-hour price change between the
+  previous 20 trade **openings** — the engine holds no price bars, and this is derived only
+  from data the trader could have had.
+- **No hindsight**: only trades that **closed** before the target **opened** are eligible.
+  Features are z-scored over that eligible pool, so not even the scaling sees the future.
+- Manual neighbours for a manual trade; an EA's own trades for an EA's.
+- Returns the neighbours plus wins/losses, mean R and confidence. Twelve trades is rarely
+  Strong, and the label says so.
+
+### 6.10 Counterfactual ("What-if")
+The equity curve with the impurity trades removed, in money and in R, actual against
+counterfactual, plus **per-pillar toggles** (revenge only, market conditions only, …).
+
+- **Winners are removed too.** Removing only the impurities that lost would be an
+  advertisement, not a counterfactual. Some accounts come out worse. That is the point.
+- Always carries the label **"Counterfactual, not a promise"**.
+- **V1 is linear**: the removed trades' P&L is subtracted from the curve in close order and
+  nothing else is recomputed — no re-sizing, no margin, no compounding. A trade that risked 1%
+  of a larger equity is not re-priced against the equity it would have had.
+- **How it differs from the Karat Gap (§6.3).** The Gap is a *bill*: losses only, each
+  attributed to exactly one pillar in priority order, so no dollar is billed twice. The What-if
+  is a *curve*: whole trades, winners included, and a trade carrying two kinds of impurity is
+  removed by both toggles, because either habit alone would have prevented it. The two numbers
+  do not match and are not supposed to — the Gap is always the smaller and the stricter.
+
+### 6.11 Discipline Replay
+Per UTC day: the trades in order, the **running day Karat after each trade**, and each impurity
+with its reason. The day Karat is that day's own trades, unweighted, as the Vault engraves it —
+a mark on a day, not the score. A day opens at **24.0K**: no trades is nothing to fault.
+
+**Tilt episode** = **≥ 2 impurities within 60 minutes**, reported with start, end, the Karat
+drop across it and its cost. The chain is measured between *consecutive* impurity entries, so
+12:28 → 13:25 → 14:20 is one episode of three: tilt does not reset on the hour.
+
+### 6.12 Prop check
+**Historical only, never a prediction.** A user-editable preset — daily loss %, max overall
+drawdown % — with a generic default (5% / 10%). **It names no firm and claims no firm's rules.**
+
+- Reports the days that would have breached, the first breach date, and which pillar's
+  impurities carried the most breach days (using the Gap's own attribution, so the two surfaces
+  never disagree).
+- The daily rule **resets every morning**; the overall drawdown rule is **terminal** — the
+  first crossing is the breach, and marking every later day as a fresh one would turn a single
+  event into fifty.
+- Breaching is not an impurity. It is an outcome, and no pillar scores it. The full prop-firm
+  rule tracker remains V2 (§4).
+
 ---
 
 ## 7. EA Health — Fineness (‰)
@@ -160,6 +275,12 @@ Per EA (grouped by **magic number**), shown in **Constellation**.
 - Labels: ≥ 930 Fine · ≥ 850 Standard · ≥ 700 Watch · < 700 Degraded.
 - **Drift alert**: recent-20 expectancy more than 2 standard errors below baseline.
 - **Correlation**: Pearson correlation of daily P&L between EAs; ≥ 0.6 → flag "same bet".
+- **Monte Carlo drawdown band (Stage 6).** Where a backtest expectancy and dispersion are
+  entered, resample the backtest's trade distribution to a band of drawdowns the EA should be
+  expected to produce, and show the live drawdown against it. Deterministic and seeded like
+  every other resample in the engine (§6.6). Until it exists, `drawdownVsBaseline` compares the
+  live drawdown to the baseline period's, scaled by √n — a band says "this is inside what this
+  EA does", which a single ratio cannot.
 
 ---
 
@@ -327,7 +448,8 @@ components/
                               Hallmark, VaultCalendar, Constellation, AssayCertificate
   ui/                         primitives (Card, Label, Stat, Button, Table)
 lib/
-  engine/                     trades, sessions, news, karat, gap, proof, fineness, correlation
+  engine/                     trades, sessions, news, karat, gap, proof, fineness, correlation,
+                              confidence, baselines, edgemap, similar, counterfactual, replay, prop
   demo/                       deterministic generator
   supabase/                   clients + typed queries
 connector/                    KavrixConnector.mq5 + README
@@ -352,15 +474,33 @@ connector/                    KavrixConnector.mq5 + README
 - [x] 0 — Setup, tokens, fonts, UI primitives
 - [x] 1 — Demo data generator
 - [x] 2 — Analytics engine + Karat + tests
+- [x] 2.5 — Statistical intelligence: confidence, personal baselines, Edge Map, Similar Trades,
+  What-if, Discipline Replay, prop check (§6.6–§6.12). Engine only, no UI.
 - [ ] 3 — Assay dashboard (Dial, Pillars, Gap, Refinery, Proof)
+  - **"Explain this number"**: every metric on every surface opens its formula, the trades
+    behind it and its §6.6 confidence. Calm and factual — it explains, it does not reassure.
 - [ ] 4 — Gold Clock + Purity Line + Vault
+  - **What-if toggle on the Purity Line** (§6.10), carrying the "Counterfactual, not a promise"
+    label wherever it is drawn.
+  - **Discipline Replay opens from a day in the Vault** (§6.11).
 - [ ] 5 — Ledger + Hallmarks + Trade Dossier
 - [ ] 6 — Constellation (EA Health, Fineness, correlation)
+  - **Monte Carlo drawdown band from the backtest** for EA Health (§7).
 - [ ] 7 — Wrapped + Assay Certificate export
+  - The Certificate and `/verify/[serial]` show **only** Karat, tier, Hallmarks, period and
+    trade count. **Never money, R totals or balances** — a shareable card is a public surface,
+    and the trader's P&L is nobody else's business.
 - [ ] 8 — Auth + ingest API + Kavrix Connector EA
+  - Connector status is honest: "Synced · 4s ago" from a real heartbeat. **Never an invented
+    latency figure**, and never a green dot the data does not support.
 - [ ] 9 — AI explanations
 - [ ] 10 — Cinematic landing
+  - **Methodology page**, linked from the footer: how Karat is computed, what the confidence
+    labels mean, and what the What-if does and does not claim.
 - [ ] 11 — Polish, README with architecture diagram, deploy
+  - Engineering metrics (test count, engine speed, Lighthouse) belong in the **README only**,
+    never in the app. They are a portfolio fact about the build, not a product claim to a
+    trader.
 
 ---
 
@@ -717,4 +857,167 @@ KAVRIX · ENGINE REPORT
     1001 ↔ 1002                         0.836  · same bet
     1001 ↔ 1003                         -0.237
     1002 ↔ 1003                         -0.242
+```
+
+### Stage 2.5 — Statistical intelligence ✅ (2026-09-22)
+
+Seven pure modules on top of the Stage 2 engine (§6.6–§6.12). **No Karat formula was
+touched**: `karat.ts` is byte-for-byte the file Stage 2 shipped apart from one filtering
+fast path (below), and all 199 Stage 2 tests still pass unchanged.
+
+**What exists now** (`lib/engine/`)
+- `rng.ts` — mulberry32 and two FNV-1a hashes. The engine's own copy: the demo folder
+  depends on the engine's types, so the engine may not depend back on the demo folder,
+  and eight lines of generator is cheaper than that edge in the graph.
+- `confidence.ts` — the seeded bootstrap, the percentile and Wilson intervals, the
+  Strong/Moderate/Weak ladder, the bootstrap p-value, Benjamini–Hochberg and the
+  post-correction label.
+- `baselines.ts` — median and p90 of lot size, risk %, trades per day and holding time,
+  and the "outside your normal" findings. `quantile` (type 7) was added to `math.ts`.
+- `edgemap.ts` — 17 cells over four pre-trade dimensions, BH-corrected as one family,
+  top 3 strengths and weaknesses.
+- `similar.ts` — k = 12 kNN on entry-time features only, with the no-hindsight rule.
+- `counterfactual.ts` — the What-if curve and six per-pillar toggles.
+- `replay.ts` — the day walk, the running day Karat and tilt episodes.
+- `prop.ts` — the historical preset check.
+- `index.ts` — `runEngine(input, settings, asOf, options?)` now returns `refinery`,
+  `baselines`, `edgeMap`, `similar`, `counterfactual`, `replay` and `prop` alongside
+  everything Stage 2 returned. `Finding` gained `confidence` and `tentative`;
+  `BucketStats` gained `confidence`.
+- 140 new Vitest cases across nine files. **339 tests in total, all passing.**
+
+**Decisions taken** (each one is a place the brief left a choice open)
+- **The resample count tapers on a very large group.** 2,000 resamples × n, across the
+  ~70 groups one run scores, is quadratic in the wrong place: at 10,000 trades it alone
+  costs more than the performance contract allows. So the budget is
+  `resamples × n ≤ 400,000` → **every group up to 200 trades gets the full 2,000**, and
+  past that the count tapers to a floor of 200. `resamples` controls the Monte Carlo
+  error of the interval's *endpoints*, and a 3,000-trade group's interval is already
+  narrow — this is precision nobody reads, traded for an engine that stays inside §16.
+  Every group on the demo account, and on any account this product is built for, gets
+  the full 2,000. All three numbers are in Settings.
+- **A group seeds its own bootstrap** (a hash of its values). Two runs agree forever, and
+  two different cells do not share a stream and correlate their intervals.
+- **The p-value is the bootstrap's own**, floored at `1/(B+1)`, rather than a t-test.
+  It comes from the same distribution as the interval, so a cell can never report an
+  interval clear of zero and a p-value that disagrees with it.
+- **BH downgrades Strong to Moderate, not to Weak.** A cell that did not survive the
+  correction still has its sample; what it has lost is the claim to be exceptional.
+- **The Edge Map splits each session into its open and its remainder.** The open is a
+  different market from the rest of the session, and the demo proves it: London open is
+  +1.4R across 70 trades while London after the open is not an edge at all. Without the
+  split, §11's headline story averages itself away.
+- **Context cells are exclusive, first-of-day first.** Sitting down to start the day is a
+  different decision from the one taken eight minutes after a loss, even if yesterday
+  ended badly.
+- **Volatility at entry is derived from prior trade openings.** The engine has no price
+  bars — §13 stores deals, not ticks — so it is the standard deviation of the per-hour
+  price change across the previous 20 openings. Coarse, and honest about being coarse:
+  everything in it was on the screen when the trade was opened.
+- **Similar Trades z-scores over the eligible pool**, not the whole history. Scaling is
+  information too, and the rule is that nothing after the entry may enter the distance.
+- **The What-if removes winners.** Stated plainly in the module header and in §6.10,
+  because the whole value of the number is that it can come out against the trader — on
+  a fixture in `counterfactual.test.ts` it does.
+- **A per-pillar toggle is not the Gap's attribution.** The Gap bills each trade once, in
+  priority order; a toggle asks "what if this habit had not existed", and a trade with
+  two impurities is removed by both toggles. Every scenario therefore also reports what
+  the Gap bills for the same trades, so the two can be read side by side.
+- **A day opens at 24.0K** in the Replay. A day with no trades has nothing to fault, so
+  that is where the first trade's `karatBefore` starts.
+- **A tilt episode chains between consecutive impurities**, not inside a fixed hour:
+  12:28 → 13:25 → 14:20 is one episode of three. Tilt does not reset on the hour.
+- **The prop drawdown rule is terminal, the daily rule resets.** Counting every day after
+  a 10% drawdown as a fresh breach turned one event into 58 on the demo account, which is
+  a number that means nothing. It is now 10 daily-loss breaches and one drawdown breach,
+  8 of the 10 in the opening phase — which is the story §11 planted.
+- **A finding with no trade sample is tentative, not Weak.** `ea-same-bet` makes a real
+  claim about a correlation, but not a claim about a mean R, so it carries
+  `confidence: null` and never leads the Refinery.
+- **Baselines exclude the window they judge.** A week compared against a history that
+  contains it hides the change. The demo trader's last week is *inside* their own normal
+  — they improved — so the report honestly says "nothing outside your normal this week"
+  rather than manufacturing a finding.
+
+**Performance**
+The benchmark in `performance.test.ts` builds a synthetic 10,000-trade history (520
+trading days, one trade in seven from an EA) and asserts `runEngine` finishes inside one
+second. **Measured: 687 ms median of five runs** (663 · 671 · 687 · 701 · 717 ms) on the
+development container. A second case asserts that 4× the trades costs under 10× the time,
+which is the real guard: it is an alarm for an accidental O(n²), not a stopwatch.
+
+Two things had to change to fit. Neither alters a formula:
+- **`series.ts` walks the rolling window with two pointers** instead of re-filtering the
+  whole account once per day. It was 414 ms of the 582 ms baseline at 10,000 trades and
+  is now ~216 ms. `computeKarat` gained a `preWindowed` option, which only the series
+  uses. The same trades are scored either way, and every Stage 2 series test still passes.
+- **`rankHourWindows` no longer bootstraps.** Twenty-two overlapping windows is
+  twenty-two bootstraps to publish one of them; it returns `tradeIds` and the finding
+  that quotes the winner measures its own sample.
+
+**Not built, on purpose**
+No UI, no persistence, no AI — the UI decisions this stage produced are recorded against
+their stages in §17 and stay there until those stages arrive. The Monte Carlo drawdown
+band for EA Health is noted in §7 and belongs to Stage 6.
+
+**`pnpm engine:report` — the new sections**
+```
+07 — EDGE MAP · CORRECTED ACROSS EVERY CELL
+────────────────────────────────────────────────────────────────────────
+  Cells                                 17 tested · 0 under 8 trades · BH at α 0.05
+  Top 3 strengths                       
+    London open                           70 trades ·   +1.4R · Strong   · q 0.001 · Session
+    Asia after the open                   50 trades ·   +1.2R · Strong   · q 0.001 · Session
+    Monday                                33 trades ·   +0.9R · Strong   · q 0.001 · Weekday
+  Bottom 3 weaknesses                   
+    In the news window                    65 trades ·   −1.0R · Strong   · q 0.001 · News proximity
+    New York open                         50 trades ·   −0.9R · Strong   · q 0.001 · Session
+    15–60 min from a release              23 trades ·   −0.7R · Strong   · q 0.010 · News proximity
+
+08 — SIMILAR TRADES · ONE WORKED EXAMPLE
+────────────────────────────────────────────────────────────────────────
+  Target                                T-700766 · 2026-09-11 12:36 UTC · −1.0R · news, oversized
+  Nearest 12                            3 won · 9 lost · −0.5R average · −$2,312.86
+    confidence                          Moderate · n   12 · 95% CI  −1.1R →  +0.1R · win  25.0% (8.9%–53.2%) · p 0.109
+    drawn from                          202 trades closed before it opened
+
+09 — OUTSIDE YOUR NORMAL
+────────────────────────────────────────────────────────────────────────
+  Baseline                              203 trades before the last 7 days · 17 since
+    Lot size                            median 0.50 lots · p90 1.13 lots · last 7 days 0.49 lots
+    Risk per trade                      median 1.04% · p90 1.96% · last 7 days 0.67%
+    Trades per day                      median 3.50 trades · p90 6.00 trades · last 7 days 3.00 trades
+    Holding time                        median 22.00 min · p90 93.00 min · last 7 days 46.00 min
+  Findings                              nothing outside your normal this week
+
+10 — WHAT-IF · COUNTERFACTUAL, NOT A PROMISE
+────────────────────────────────────────────────────────────────────────
+  Method                                Removed trades are subtracted from the curve in close order. Nothing else is re-computed: no re-sizing, no margin, no compounding.
+  Actual                                +$2,787.10 · +155.0R · closing equity $27,787.10
+    Every impurity                      130 removed (42W/88L) · →  +$19,895.34 · delta  +$17,108.24 ·   +55.8R · gap bills −$26,700.37
+    Revenge only                         32 removed (6W/26L) · →  +$10,852.61 · delta   +$8,065.51 ·   +25.5R · gap bills −$10,317.36
+    Market conditions only               78 removed (15W/63L) · →  +$22,888.23 · delta  +$20,101.13 ·   +73.8R · gap bills −$23,501.08
+    Oversized risk only                 109 removed (36W/73L) · →  +$15,095.20 · delta  +$12,308.10 ·   +30.8R · gap bills −$20,585.70
+    Stops only                           20 removed (5W/15L) · →  +$10,673.32 · delta   +$7,886.22 ·   +37.2R · gap bills −$8,397.23
+    Exit overruns only                   21 removed (0W/21L) · →  +$15,456.71 · delta  +$12,669.61 ·   +54.2R · gap bills −$12,123.40
+
+11 — DISCIPLINE REPLAY · WORST TILT EPISODE
+────────────────────────────────────────────────────────────────────────
+  Episodes                              23 across 65 trading days · 21 days in the scored window
+  Worst                                 2026-07-15 · 12:12–12:42 UTC · 30 min
+    damage                              4 impurities · day Karat 24.0K → 7.1K (−16.9K) · −$1,322.12
+      12:12   −1.0R  revenge, oversized
+      12:16   −3.8R  news, noStop, exitOverrun
+      12:25   +1.9R  revenge, news, noStop
+      12:42   −2.6R  revenge, news, oversized, noStop, exitOverrun
+
+12 — PROP CHECK · HISTORICAL ONLY
+────────────────────────────────────────────────────────────────────────
+  Preset                                Generic preset · 5% a day · 10% overall
+  Breach days                           10 of 65 · daily loss 10 · overall drawdown 1
+  First breach                          2026-06-23 · daily loss
+  Worst                                 day loss 13.5% · drawdown 51.5%
+    Revenge                             6 breach days · −$11,557.32
+    Market Conditions                   4 breach days · −$6,552.85
+  Note                                  Historical only. These are days that already happened, measured against a preset you set yourself — not a rule from any firm, and not a prediction.
 ```
