@@ -467,10 +467,14 @@ connector/                    KavrixConnector.mq5 + README
   one. Ordinary trades are therefore held back from tripping it — lots capped,
   entries nudged past the window where the clock allows — so the 11.8% the
   data reports is deliberate rather than accidental.
-- **Positive R, negative money.** Manual trading is +41.9R but −$2,733: the
-  R-positive edge is given away by trades that were too big, too close to a
-  release, or taken straight after a loss. That is the Karat Gap the product is
-  for, and it is visible in the raw data before the engine exists.
+- **Positive R, negative money — settled, do not "fix".** Manual trading is
+  +41.9R but −$2,733: the R-positive edge is given away by trades that were too
+  big, too close to a release, or taken straight after a loss. This is not a
+  flaw in the demo data to be balanced away in a later stage. It *is* the
+  product's core claim — sizing and discipline decided the money, not skill —
+  and the Karat Gap is the line that explains the difference. A demo trader who
+  finished clearly up in money would make the Assay a victory lap and the Gap a
+  footnote. Confirmed by the product owner, 2026-09-22.
 - **MFE/MAE are prices, not R.** The generator records the extreme prices
   reached while a position was open; converting them to R is engine work.
 - **`tsx` added as a dev dependency** so `pnpm demo:report` can run a
@@ -630,6 +634,13 @@ across 45 trades against $10,317 across 26. §6.3 attributes Revenge first, so
 what lands on Market Conditions is everything given away to a release that was
 not *also* a revenge trade, and the demo plants a bigger news habit than a
 revenge habit. Both are asserted in `lib/engine/demo.test.ts`.
+
+**The demo trader ends R-positive and money-negative, and stays that way.**
+Recalibrating the phases left manual trading at +41.9R for −$2,733, and that
+result is deliberate: it is the shape every surface from Stage 3 onwards is
+built to explain — the Refinery, the Karat Gap, the Purity Line, the
+Certificate. No later stage should rebalance the closing phases to put the
+account clearly up in money. The Stage 1 decision above is the standing one.
 
 **Not built, on purpose**
 No UI, no snapshot persistence, no AI. The engine writes nothing and reads
