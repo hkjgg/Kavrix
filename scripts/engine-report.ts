@@ -90,7 +90,7 @@ function main(): void {
     lines.push(
       line(
         `  ${gapLine.label}`,
-        `${money(-gapLine.costMoney).padStart(13, ' ')} · ${formatR(-gapLine.costR).padStart(8, ' ')} · ${gapLine.tradeCount} trades`,
+        `${money(-gapLine.costMoney).padStart(13, ' ')} · ${formatR(-gapLine.costR).padStart(8, ' ')} · ${gapLine.tradeCount} ${gapLine.tradeCount === 1 ? 'trade' : 'trades'}`,
       ),
     );
   }
@@ -99,7 +99,7 @@ function main(): void {
     lines.push(
       line(
         `  ${gapLine.label}`,
-        `${money(-gapLine.costMoney).padStart(13, ' ')} · ${formatR(-gapLine.costR).padStart(8, ' ')} · ${gapLine.tradeCount} trades`,
+        `${money(-gapLine.costMoney).padStart(13, ' ')} · ${formatR(-gapLine.costR).padStart(8, ' ')} · ${gapLine.tradeCount} ${gapLine.tradeCount === 1 ? 'trade' : 'trades'}`,
       ),
     );
   }

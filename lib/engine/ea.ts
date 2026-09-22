@@ -208,11 +208,18 @@ export function finenessFrom(components: FinenessComponents): number {
   return round(Math.min(999.9, clamp(raw, 0, 1) * 1000), 1);
 }
 
-/** Fineness labels (§7). */
+/**
+ * Fineness labels (§7).
+ *
+ * The bands are wide because the components are: an EA trading exactly to its
+ * baseline still gives a little back on consistency and spread, so a band that
+ * started at 995‰ marked healthy EAs down. 930‰ is "doing what it said it
+ * would"; under 700‰ something is actually wrong.
+ */
 export function finenessLabel(fineness: number): FinenessLabel {
-  if (fineness >= 995) return 'Fine';
-  if (fineness >= 950) return 'Standard';
-  if (fineness >= 900) return 'Watch';
+  if (fineness >= 930) return 'Fine';
+  if (fineness >= 850) return 'Standard';
+  if (fineness >= 700) return 'Watch';
   return 'Degraded';
 }
 

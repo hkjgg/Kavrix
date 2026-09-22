@@ -134,12 +134,12 @@ describe('the Fineness scale (§7)', () => {
 
   it('labels each band', () => {
     expect(finenessLabel(999.9)).toBe('Fine');
-    expect(finenessLabel(995)).toBe('Fine');
-    expect(finenessLabel(994.9)).toBe('Standard');
-    expect(finenessLabel(950)).toBe('Standard');
-    expect(finenessLabel(949.9)).toBe('Watch');
-    expect(finenessLabel(900)).toBe('Watch');
-    expect(finenessLabel(899.9)).toBe('Degraded');
+    expect(finenessLabel(930)).toBe('Fine');
+    expect(finenessLabel(929.9)).toBe('Standard');
+    expect(finenessLabel(850)).toBe('Standard');
+    expect(finenessLabel(849.9)).toBe('Watch');
+    expect(finenessLabel(700)).toBe('Watch');
+    expect(finenessLabel(699.9)).toBe('Degraded');
   });
 });
 

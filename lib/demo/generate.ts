@@ -52,6 +52,13 @@ import { Rng } from './rng';
 /** The one seed the shipped demo uses. Change it and every number changes. */
 export const DEMO_SEED = 20_260_920;
 
+/**
+ * XOR mask that gives the Expert Advisors their own stream off the same seed.
+ * Still one seed, still reproducible — but the manual plan and the EAs no
+ * longer share a queue of random numbers.
+ */
+const EA_SEED_MASK = 0x0e_a5_ee_d1;
+
 /** Length of the demo window, in days. */
 export const DEMO_DAYS = 90;
 
@@ -174,35 +181,117 @@ interface CohortQuota {
 
 type PhaseQuotas = Record<ManualCohort, CohortQuota>;
 
+/** The four stretches of the 90 days, worst first. */
+export type PhaseKey = 'raw' | 'mixed' | 'solid' | 'refined';
+
+export interface ManualPhase {
+  key: PhaseKey;
+  /** What the weeks in this phase should read as on the dial (CLAUDE.md §6.2). */
+  label: string;
+  /** First day of the phase, counted from `DEMO_START_MS`. */
+  startDay: number;
+  /**
+   * Multiplier on every cohort's planned risk except `oversized`, whose size
+   * is its own point. This is the main lever on the Risk pillar, and so on the
+   * weekly Karat: at 1.8 an ordinary 0.8% trade becomes a 1.44% one, which
+   * §6.1 scores near zero.
+   */
+  riskMultiplier: number;
+  /** Ceiling the multiplier is clamped to, as a percentage of equity. */
+  riskCeilingPercent: number;
+  quotas: PhaseQuotas;
+}
+
 /**
  * The plan, written out rather than sampled, because the stories in §11 are
- * requirements and not tendencies. 220 manual trades, 110 of them losers.
+ * requirements and not tendencies. 220 manual trades, 118 of them losers.
  *
- * `early` is the first 69 days; `late` is the closing 21. The difference
- * between the two columns *is* the improvement arc.
+ * The four phases *are* the improvement arc, and they are meant to be read
+ * down the columns: the trader starts out breaking every rule at once, then
+ * stops oversizing, then stops chasing releases, and finally trades the London
+ * open and little else. Weekly Karat follows — roughly Alloyed, then Mixed,
+ * then Solid, then Refined and Pure (§6.2).
  */
-const MANUAL_PLAN: { early: PhaseQuotas; late: PhaseQuotas } = {
-  early: {
-    news: { trades: 37, losses: 31 },
-    oversized: { trades: 8, losses: 6 },
-    noStop: { trades: 6, losses: 5 },
-    slWidened: { trades: 8, losses: 7 },
-    revenge: { trades: 19, losses: 16 },
-    rollover: { trades: 5, losses: 4 },
-    london: { trades: 45, losses: 11 },
-    normal: { trades: 35, losses: 11 },
+const MANUAL_PHASES: readonly ManualPhase[] = [
+  {
+    key: 'raw',
+    label: '10K · Alloyed',
+    startDay: 0,
+    riskMultiplier: 1.8,
+    riskCeilingPercent: 1.55,
+    quotas: {
+      news: { trades: 14, losses: 13 },
+      oversized: { trades: 10, losses: 9 },
+      noStop: { trades: 8, losses: 7 },
+      slWidened: { trades: 6, losses: 5 },
+      revenge: { trades: 5, losses: 4 },
+      rollover: { trades: 10, losses: 8 },
+      london: { trades: 8, losses: 2 },
+      normal: { trades: 7, losses: 3 },
+    },
   },
-  late: {
-    news: { trades: 4, losses: 3 },
-    oversized: { trades: 1, losses: 1 },
-    noStop: { trades: 0, losses: 0 },
-    slWidened: { trades: 1, losses: 1 },
-    revenge: { trades: 2, losses: 2 },
-    rollover: { trades: 1, losses: 1 },
-    london: { trades: 26, losses: 5 },
-    normal: { trades: 22, losses: 6 },
+  {
+    key: 'mixed',
+    label: '14K · Mixed',
+    startDay: 28,
+    riskMultiplier: 1.4,
+    riskCeilingPercent: 1.25,
+    quotas: {
+      news: { trades: 8, losses: 7 },
+      oversized: { trades: 3, losses: 2 },
+      noStop: { trades: 2, losses: 1 },
+      slWidened: { trades: 3, losses: 2 },
+      revenge: { trades: 3, losses: 2 },
+      rollover: { trades: 3, losses: 2 },
+      london: { trades: 14, losses: 3 },
+      normal: { trades: 8, losses: 3 },
+    },
   },
-};
+  {
+    key: 'solid',
+    label: '18K · Solid',
+    startDay: 49,
+    riskMultiplier: 1,
+    riskCeilingPercent: 1.05,
+    quotas: {
+      news: { trades: 8, losses: 6 },
+      oversized: { trades: 1, losses: 1 },
+      noStop: { trades: 0, losses: 0 },
+      slWidened: { trades: 2, losses: 1 },
+      revenge: { trades: 2, losses: 1 },
+      rollover: { trades: 1, losses: 1 },
+      london: { trades: 22, losses: 4 },
+      normal: { trades: 12, losses: 3 },
+    },
+  },
+  {
+    key: 'refined',
+    label: '22K · Refined',
+    startDay: DEMO_DAYS - DEMO_IMPROVEMENT_DAYS,
+    riskMultiplier: 0.85,
+    riskCeilingPercent: 0.9,
+    quotas: {
+      news: { trades: 4, losses: 3 },
+      oversized: { trades: 1, losses: 1 },
+      noStop: { trades: 0, losses: 0 },
+      slWidened: { trades: 1, losses: 1 },
+      revenge: { trades: 2, losses: 2 },
+      rollover: { trades: 1, losses: 1 },
+      london: { trades: 28, losses: 5 },
+      normal: { trades: 23, losses: 6 },
+    },
+  },
+];
+
+/** The phase a day belongs to, by its index from `DEMO_START_MS`. */
+function phaseForDayIndex(dayIndex: number): ManualPhase {
+  let current = MANUAL_PHASES[0];
+  if (current === undefined) throw new Error('MANUAL_PHASES is empty');
+  for (const phase of MANUAL_PHASES) {
+    if (dayIndex >= phase.startDay) current = phase;
+  }
+  return current;
+}
 
 /* -------------------------------------------------------------------------
  * Blueprints — the intent of a trade, before the price path has its say
@@ -346,7 +435,8 @@ interface TradingDay {
   dateKey: string;
   /** High-impact release times on this day, epoch ms, ascending. */
   eventTimes: number[];
-  late: boolean;
+  /** Which stretch of the arc this day belongs to. */
+  phase: ManualPhase;
 }
 
 function buildTradingDays(calendar: readonly NewsEvent[]): TradingDay[] {
@@ -369,7 +459,7 @@ function buildTradingDays(calendar: readonly NewsEvent[]): TradingDay[] {
       dayMs,
       dateKey,
       eventTimes: (eventsByDate.get(dateKey) ?? []).slice().sort((a, b) => a - b),
-      late: dayMs >= DEMO_IMPROVEMENT_START_MS,
+      phase: phaseForDayIndex(Math.round((dayMs - DEMO_START_MS) / (24 * 60 * MINUTE_MS))),
     });
   }
   return days;
@@ -393,7 +483,7 @@ interface Slot {
 }
 
 /** Risk as a percentage of equity, per cohort. The violations are deliberate. */
-function riskPercentFor(rng: Rng, cohort: ManualCohort, late: boolean): number {
+function riskPercentFor(rng: Rng, cohort: ManualCohort, phase: ManualPhase): number {
   const base = ((): number => {
     switch (cohort) {
       case 'oversized':
@@ -410,8 +500,11 @@ function riskPercentFor(rng: Rng, cohort: ManualCohort, late: boolean): number {
         return rng.float(0.7, 0.9);
     }
   })();
-  // In the closing phase the trader has their size under control.
-  return late && cohort !== 'oversized' ? Math.min(base * 0.85, 0.9) : base;
+  // Sizing is where the arc is most visible: the same cohort risks 1.44% in
+  // the opening weeks and 0.68% in the closing ones. `oversized` is left
+  // alone — being too big is the whole of what it represents.
+  if (cohort === 'oversized') return base;
+  return Math.min(base * phase.riskMultiplier, phase.riskCeilingPercent);
 }
 
 function stopDistanceFor(rng: Rng, cohort: ManualCohort): number {
@@ -685,7 +778,7 @@ function slotsToBlueprints(
       targetR,
       slDistance: roundTo(slDistance, 2),
       sizingDistance: roundTo(sizingDistance, 2),
-      riskPercent: cohort === 'revenge' ? null : riskPercentFor(rng, cohort, day.late),
+      riskPercent: cohort === 'revenge' ? null : riskPercentFor(rng, cohort, day.phase),
       fixedVolume: null,
       tpR: slot.wantLoss ? null : roundTo(Math.abs(targetR) + rng.float(0.1, 0.6), 2),
       maxHoldMinutes: maxHold,
@@ -755,7 +848,7 @@ function buildEaBlueprints(
     const breakouts = rng.int(1, 3);
     for (let i = 0; i < breakouts; i += 1) {
       const minuteOfDay = rng.int(7 * 60 + 5, 9 * 60 + 30);
-      const targetR = clamp(0.3 + 1.05 * dayFactor + rng.gaussian(0, 0.4), -2, 3.2);
+      const targetR = clamp(0.34 + 1.05 * dayFactor + rng.gaussian(0, 0.32), -2, 3.2);
       blueprints.push({
         id: nextId(),
         magic: 1002,
@@ -1248,8 +1341,6 @@ export function generateDemoData(options: GenerateDemoOptions = {}): DemoDataset
   const path = buildPath(rng);
 
   const days = buildTradingDays(calendar);
-  const earlyDays = days.filter((day) => !day.late);
-  const lateDays = days.filter((day) => day.late);
 
   let idCounter = 0;
   const nextId = (): number => {
@@ -1258,18 +1349,19 @@ export function generateDemoData(options: GenerateDemoOptions = {}): DemoDataset
   };
 
   const blueprints: Blueprint[] = [];
-  for (const [phaseDays, quotas] of [
-    [earlyDays, MANUAL_PLAN.early] as const,
-    [lateDays, MANUAL_PLAN.late] as const,
-  ]) {
-    const slotsByDay = buildSlots(rng, phaseDays, quotas);
+  for (const phase of MANUAL_PHASES) {
+    const phaseDays = days.filter((day) => day.phase.key === phase.key);
+    const slotsByDay = buildSlots(rng, phaseDays, phase.quotas);
     for (const day of phaseDays) {
       const slots = slotsByDay.get(day.dayMs);
       if (slots === undefined || slots.length === 0) continue;
       blueprints.push(...slotsToBlueprints(rng, day, slots, nextId));
     }
   }
-  blueprints.push(...buildEaBlueprints(rng, days, nextId));
+  // The EAs draw from their own stream. Their stories (§11) are about the
+  // robots, not about the trader, so re-planning a manual phase must not
+  // quietly re-roll Gold Scalper's year.
+  blueprints.push(...buildEaBlueprints(new Rng(seed ^ EA_SEED_MASK), days, nextId));
 
   // Realize in chronological order so equity — and every revenge trade's
   // parent — is already known by the time a trade is priced.

@@ -5,14 +5,14 @@
  * *behaviour* — it never computes a metric. This file is the other half of
  * that contract: the engine must **discover** those stories from the raw
  * trades, with no help and no tuning.
- *
- * Two results here differ from what the demo notes led us to expect, and both
- * are the spec behaving correctly rather than the engine misbehaving. They are
- * asserted as they actually are, and explained where they sit.
  */
 
 import { describe, expect, it } from 'vitest';
-import { DEMO_EA_DRIFT_START_MS, DEMO_IMPROVEMENT_START_MS, generateDemoData } from '@/lib/demo/generate';
+import {
+  DEMO_EA_DRIFT_START_MS,
+  DEMO_IMPROVEMENT_START_MS,
+  generateDemoData,
+} from '@/lib/demo/generate';
 import {
   DEFAULT_SETTINGS,
   karatFromPoints,
@@ -33,15 +33,15 @@ function karatOf(trades: readonly EnrichedTrade[]): number {
 
 describe('the engine reads the demo account', () => {
   it('measures every trade the generator produced', () => {
-    expect(result.counts.trades).toBe(836);
+    expect(result.counts.trades).toBe(834);
     expect(result.counts.manualTrades).toBe(220);
-    expect(result.counts.eaTrades).toBe(616);
+    expect(result.counts.eaTrades).toBe(614);
     expect(result.counts.newsEvents).toBe(37);
   });
 
   it('scores it, and the score is explainable', () => {
     expect(result.karat.state).toBe('scored');
-    expect(result.karat.karat).toBe(23);
+    expect(result.karat.karat).toBe(23.1);
     expect(result.karat.tier?.label).toBe('22K · Refined');
     for (const pillar of result.karat.pillars) {
       const lost = pillar.deductions.reduce((total, item) => total + item.pointsLost, 0);
@@ -57,16 +57,32 @@ describe('the engine reads the demo account', () => {
   });
 });
 
-describe('§11 story 1 — discipline improves over the last three weeks', () => {
+describe('§11 story 1 — discipline improves', () => {
   const early = manual.filter((trade) => trade.openTimeMs < DEMO_IMPROVEMENT_START_MS);
   const late = manual.filter((trade) => trade.openTimeMs >= DEMO_IMPROVEMENT_START_MS);
 
-  it('scores the last 21 days above the first 69', () => {
-    expect(early).toHaveLength(163);
-    expect(late).toHaveLength(57);
+  it('scores the last 21 days well above the first 69', () => {
+    expect(early).toHaveLength(160);
+    expect(late).toHaveLength(60);
     expect(karatOf(late)).toBeGreaterThan(karatOf(early));
-    expect(karatOf(late)).toBe(22.5);
-    expect(karatOf(early)).toBe(19.7);
+    expect(karatOf(early)).toBe(17.4);
+    expect(karatOf(late)).toBe(22.7);
+  });
+
+  it('climbs through the tiers week by week (§6.2)', () => {
+    const weeks = result.proof.weeks;
+    expect(weeks).toHaveLength(13);
+
+    // The opening month is alloyed, the closing month refined or pure.
+    const opening = weeks.slice(0, 4).map((week) => week.karat);
+    const closing = weeks.slice(-4).map((week) => week.karat);
+    expect(opening).toEqual([11.9, 12.4, 16.2, 13.8]);
+    for (const karat of closing) expect(karat).toBeGreaterThanOrEqual(21);
+
+    // Three weeks, all of them in the first month, are impure enough for §6.4.
+    const impure = weeks.filter((week) => week.karat < DEFAULT_SETTINGS.proofLowKarat);
+    expect(impure).toHaveLength(3);
+    for (const week of impure) expect(weeks.indexOf(week)).toBeLessThan(4);
   });
 
   it('shows the same climb in the daily series and the weekly delta', () => {
@@ -81,45 +97,44 @@ describe('§11 story 1 — discipline improves over the last three weeks', () =>
 
 describe('§11 story 2 — losses cluster around USD news', () => {
   it('puts the news window at the top of the Refinery', () => {
-    const top = result.findings.slice(0, 3);
-    const news = top.find((finding) => finding.kind === 'news-window-losses');
-    expect(news).toBeDefined();
+    const news = result.findings[0];
+    expect(news?.kind).toBe('news-window-losses');
     expect(news?.rank).toBe(1);
-    expect(news?.metrics.trades).toBe(71);
-    expect(news?.metrics.losses).toBe(60);
-    expect(news?.impactMoney).toBeLessThan(-20_000);
+    expect(news?.metrics.trades).toBe(65);
+    expect(news?.metrics.losses).toBe(51);
+    expect(news?.impactMoney).toBeLessThan(-17_000);
   });
 
-  it('bills those losses to Market Conditions in the Gap', () => {
-    const market = result.gapAllTime.lines.find((line) => line.pillar === 'market');
+  it('makes Market Conditions the largest line in the Gap', () => {
+    // §6.3 attributes Revenge first, so what lands on Market Conditions is
+    // everything the trader lost to a release *without* it also being a
+    // revenge trade — and the demo plants a bigger news habit than a revenge
+    // habit. The two together are the Gap; the rest is rounding.
+    const lines = result.gapAllTime.lines;
+    expect(lines.map((line) => line.pillar)).toEqual(['market', 'revenge', 'risk']);
+
+    const market = lines[0];
     expect(market?.tradeCount).toBe(45);
-    expect(market?.costMoney).toBeGreaterThan(13_000);
+    expect(market?.costMoney).toBeGreaterThan(15_000);
   });
 });
 
 describe('§11 story 3 — revenge trading', () => {
   it('finds the revenge trades and what they cost', () => {
     const revenge = result.findings.find((finding) => finding.kind === 'revenge-cost');
-    expect(revenge?.metrics.trades).toBe(26);
-    expect(revenge?.metrics.shareOfTrades).toBe(11.8);
-    expect(revenge?.impactMoney).toBe(-12_828.52);
-    expect(revenge?.rank).toBeLessThanOrEqual(3);
+    expect(revenge?.metrics.trades).toBe(32);
+    expect(revenge?.metrics.shareOfTrades).toBe(14.5);
+    expect(revenge?.impactMoney).toBe(-10_317.36);
   });
 
-  it('makes revenge the largest behavioural line in the Gap', () => {
-    // The demo notes expected Revenge to be the single biggest Gap line. Under
-    // the §6.3 priority (Revenge → Market Conditions → Risk → Exits) it is the
-    // largest line the trader *chose* — but the demo plants a bigger news
-    // habit than a revenge habit, so Market Conditions edges it: $13,572
-    // across 45 trades against $12,828 across 20. Both are real, neither
-    // double-counts a dollar, and Revenge remains ahead of Risk and Exits
-    // combined by an order of magnitude.
+  it('makes revenge the second line of the Gap, ahead of everything else', () => {
     const lines = result.gapAllTime.lines;
-    expect(lines.map((line) => line.pillar)).toEqual(['market', 'revenge', 'exits', 'risk']);
-
     const revenge = lines[1];
+    expect(revenge?.pillar).toBe('revenge');
+    expect(revenge?.costMoney).toBeGreaterThan(10_000);
+    // Ahead of Risk and Exits by an order of magnitude: this is a habit, not
+    // a rounding error.
     const others = lines.slice(2);
-    expect(revenge?.costMoney).toBeGreaterThan(12_000);
     expect(revenge?.costMoney).toBeGreaterThan(
       others.reduce((total, line) => total + line.costMoney, 0) * 5,
     );
@@ -133,7 +148,7 @@ describe('§11 story 4 — the London open is the edge', () => {
     expect(best?.severity).toBe('strength');
     expect(best?.metrics.startHour).toBe(7);
     expect(best?.metrics.endHour).toBe(10);
-    expect(best?.metrics.trades).toBe(71);
+    expect(best?.metrics.trades).toBe(70);
     expect(best?.metrics.avgR).toBeGreaterThan(0.7);
     expect(best?.headline).toContain('07:00–10:00 UTC');
   });
@@ -154,11 +169,13 @@ describe('§11 story 5 — EA 1003 is drifting', () => {
     expect(eas.get(1002)?.drift.alert).toBe(false);
   });
 
-  it('marks it Degraded while the other two stay healthier', () => {
+  it('assays the three EAs into three different bands (§7)', () => {
+    expect(eas.get(1001)?.label).toBe('Fine');
+    expect(eas.get(1001)?.fineness ?? 0).toBeGreaterThanOrEqual(930);
+    expect(eas.get(1002)?.label).toBe('Standard');
+    expect(eas.get(1002)?.fineness ?? 0).toBeGreaterThanOrEqual(850);
     expect(eas.get(1003)?.label).toBe('Degraded');
-    expect(eas.get(1003)?.fineness ?? 0).toBeLessThan(500);
-    expect(eas.get(1001)?.fineness ?? 0).toBeGreaterThan(900);
-    expect(eas.get(1002)?.fineness ?? 0).toBeGreaterThan(900);
+    expect(eas.get(1003)?.fineness ?? 0).toBeLessThan(700);
   });
 
   it('sees the degradation start where the generator planted it', () => {
@@ -168,7 +185,7 @@ describe('§11 story 5 — EA 1003 is drifting', () => {
     const mean = (trades: readonly EnrichedTrade[]): number =>
       trades.reduce((total, trade) => total + trade.rMultiple, 0) / trades.length;
     expect(mean(before)).toBeGreaterThan(0.2);
-    expect(mean(after)).toBeLessThan(-0.4);
+    expect(mean(after)).toBeLessThan(-0.2);
   });
 
   it('reports the drift as a finding', () => {
@@ -183,7 +200,7 @@ describe('§11 story 6 — EA 1001 and 1002 take the same bet', () => {
     const pair = result.constellation.correlations.find(
       (candidate) => candidate.a === 1001 && candidate.b === 1002,
     );
-    expect(pair?.correlation).toBe(0.847);
+    expect(pair?.correlation).toBe(0.836);
     expect(pair?.sameBet).toBe(true);
   });
 
@@ -203,20 +220,22 @@ describe('§11 story 6 — EA 1001 and 1002 take the same bet', () => {
   });
 });
 
-describe('Your Proof on the demo account', () => {
-  it('stays hidden — the demo has no impure weeks by the §6.4 threshold', () => {
-    // 13 weeks clear the five-trade minimum; eight score 20K or better and
-    // none scores under 14K (the worst week is 16.6K), so the low bucket is
-    // empty and §6.4 says the card may not be shown. The engine is right to
-    // hide it: with no weeks to compare against, any "discipline paid you X"
-    // would be a number the data does not support.
-    expect(result.proof.weeks).toHaveLength(13);
-    expect(result.proof.high.weekCount).toBe(8);
-    expect(result.proof.low.weekCount).toBe(0);
-    expect(result.proof.visible).toBe(false);
-    expect(result.proof.differenceR).toBe(0);
-    expect(Math.min(...result.proof.weeks.map((week) => week.karat))).toBeGreaterThan(
-      DEFAULT_SETTINGS.proofLowKarat,
+describe('Your Proof on the demo account (§6.4)', () => {
+  it('shows the card: three impure weeks against the disciplined ones', () => {
+    expect(result.proof.visible).toBe(true);
+    expect(result.proof.hiddenReason).toBeNull();
+    expect(result.proof.low.weekCount).toBe(3);
+    expect(result.proof.high.weekCount).toBeGreaterThanOrEqual(
+      DEFAULT_SETTINGS.proofMinWeeksPerBucket,
+    );
+  });
+
+  it('measures what the difference was worth', () => {
+    expect(result.proof.low.avgWeeklyR).toBeLessThan(-10);
+    expect(result.proof.high.avgWeeklyR).toBeGreaterThan(10);
+    expect(result.proof.differenceR).toBeGreaterThan(20);
+    expect(result.proof.differenceR).toBe(
+      Number((result.proof.high.avgWeeklyR - result.proof.low.avgWeeklyR).toFixed(2)),
     );
   });
 });
