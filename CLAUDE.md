@@ -157,7 +157,7 @@ Per EA (grouped by **magic number**), shown in **Constellation**.
 - **Baseline** = user-entered backtest expectancy, else the EA's first 50 live trades.
 - **Fineness** (0–999.9‰) = 1000 × (0.40 expectancy stability + 0.30 drawdown vs baseline
   + 0.20 consistency + 0.10 execution quality [spread/slippage]). Each component 0–1.
-- Labels: ≥ 995 Fine · ≥ 950 Standard · ≥ 900 Watch · < 900 Degraded.
+- Labels: ≥ 930 Fine · ≥ 850 Standard · ≥ 700 Watch · < 700 Degraded.
 - **Drift alert**: recent-20 expectancy more than 2 standard errors below baseline.
 - **Correlation**: Pearson correlation of daily P&L between EAs; ≥ 0.6 → flag "same bet".
 
@@ -351,7 +351,7 @@ connector/                    KavrixConnector.mq5 + README
 
 - [x] 0 — Setup, tokens, fonts, UI primitives
 - [x] 1 — Demo data generator
-- [ ] 2 — Analytics engine + Karat + tests
+- [x] 2 — Analytics engine + Karat + tests
 - [ ] 3 — Assay dashboard (Dial, Pillars, Gap, Refinery, Proof)
 - [ ] 4 — Gold Clock + Purity Line + Vault
 - [ ] 5 — Ledger + Hallmarks + Trade Dossier
@@ -431,8 +431,9 @@ connector/                    KavrixConnector.mq5 + README
 - `lib/demo/price.ts` — 129,600 M1 bars as parallel typed arrays, with the
   session volatility profile, news spikes, and a spread that widens at
   rollover and on releases.
-- `lib/demo/generate.ts` — the account: 220 manual trades, 616 EA trades,
-  1,672 deals, 10 SL/TP modifications.
+- `lib/demo/generate.ts` — the account: 220 manual trades, 614 EA trades,
+  1,668 deals, 16 SL/TP modifications. (Recalibrated in Stage 2 — the trade
+  plan now runs in four phases rather than two; see the Stage 2 notes.)
 - `lib/demo/generate.test.ts` — 30 Vitest cases: determinism, structure, and
   one test per story in §11.
 - `scripts/demo-report.ts` behind `pnpm demo:report`.
@@ -440,8 +441,10 @@ connector/                    KavrixConnector.mq5 + README
 **Key constants** (all in `lib/demo/generate.ts` unless noted)
 - `DEMO_SEED = 20260920`. Same seed → byte-identical output, asserted.
 - Window `DEMO_START_MS` 2026-06-22 → `DEMO_END_MS` 2026-09-20, fixed, 90 days.
-- `DEMO_IMPROVEMENT_DAYS = 21` (discipline improves from 2026-08-30),
+- `DEMO_IMPROVEMENT_DAYS = 21` (the closing phase starts 2026-08-30),
   `DEMO_EA_DRIFT_DAYS = 30` (EA 1003 degrades from 2026-08-21).
+- `MANUAL_PHASES` — the four stretches of the arc: `raw` (days 0–27),
+  `mixed` (28–48), `solid` (49–68), `refined` (69–89).
 - `DEMO_START_PRICE = 2418.40` (in `price.ts`), `DEMO_STARTING_BALANCE = 25,000`,
   contract size 100, commission $3.50/lot/side, swap −$11.80 long and −$3.40
   short per lot per night, tripled on the Wednesday rollover.
@@ -450,10 +453,10 @@ connector/                    KavrixConnector.mq5 + README
 
 **Decisions taken**
 - **Behaviour is planned, not sampled.** The stories in §11 are requirements,
-  so `MANUAL_PLAN` states exactly how many trades of each cohort — news,
+  so `MANUAL_PHASES` states exactly how many trades of each cohort — news,
   revenge, oversized, no-stop, widened-stop, rollover, London, ordinary — and
-  how many of each lose, split across the two phases. Tuning the data means
-  editing one table.
+  how many of each lose, phase by phase. Tuning the data means editing one
+  table.
 - **Prices come out of the path, never out of arithmetic.** Each trade is
   walked forward bar by bar until its stop, target or time runs out, so no
   trade can quote a price the market never printed — a test proves it. The
@@ -464,10 +467,14 @@ connector/                    KavrixConnector.mq5 + README
   one. Ordinary trades are therefore held back from tripping it — lots capped,
   entries nudged past the window where the clock allows — so the 11.8% the
   data reports is deliberate rather than accidental.
-- **Positive R, flat money.** Manual trading is +50.2R but only +$407: the
-  R-positive edge is given away by a handful of oversized revenge trades
-  (−$10,900 between 26 of them). That is the Karat Gap the product is for, and
-  it is visible in the raw data before the engine exists.
+- **Positive R, negative money — settled, do not "fix".** Manual trading is
+  +41.9R but −$2,733: the R-positive edge is given away by trades that were too
+  big, too close to a release, or taken straight after a loss. This is not a
+  flaw in the demo data to be balanced away in a later stage. It *is* the
+  product's core claim — sizing and discipline decided the money, not skill —
+  and the Karat Gap is the line that explains the difference. A demo trader who
+  finished clearly up in money would make the Assay a victory lap and the Gap a
+  footnote. Confirmed by the product owner, 2026-09-22.
 - **MFE/MAE are prices, not R.** The generator records the extreme prices
   reached while a position was open; converting them to R is engine work.
 - **`tsx` added as a dev dependency** so `pnpm demo:report` can run a
@@ -476,33 +483,238 @@ connector/                    KavrixConnector.mq5 + README
 **`pnpm demo:report`**
 ```
 01 — THE LEDGER
-  Trades (total) 836 · manual 220 · EA 616 · deals 1672 · modifications 10
-  High-impact USD events 37 of 45 · manual win rate 50.0%
-  Manual net P&L +$407.44 · manual net R +50.2R · EA net P&L +$7,747.90
-  Closing balance $33,155.34
+  Trades (total) 834 · manual 220 · EA 614 · deals 1668 · modifications 16
+  High-impact USD events 37 of 45 · manual win rate 50.5%
+  Manual net P&L −$2,732.52 · manual net R +41.9R · EA net P&L +$5,519.62
+  Closing balance $27,787.10
 02 — LOSSES CLUSTER AROUND USD NEWS
-  110 manual losses · 72 within ±20 min of a high-impact event (65.5%, target ≥ 60%)
-  86 manual trades in a news window, averaging −0.9R
+  109 manual losses · 68 within ±20 min of a high-impact event (62.4%, target ≥ 60%)
+  83 manual trades in a news window, averaging −1.0R
 03 — REVENGE TRADING
-  26 revenge trades (11.8%, target 10–15%) · avg −0.9R vs +0.4R elsewhere · −$10,900.85
+  32 revenge trades (14.5%, target 10–15%) · avg −0.8R vs +0.4R elsewhere · −$8,065.51
 04 — THE LONDON OPEN IS THE EDGE
-  71 trades 07:00–10:00 UTC · avg +1.3R (target ≥ +0.7R) · win rate 77.5%
-  Asia −0.5R · London open +1.3R · London 10:00–12:30 −0.2R · New York −0.3R
+  70 trades 07:00–10:00 UTC · avg +1.4R (target ≥ +0.7R) · win rate 80.0%
+  Asia −0.6R · London open +1.4R · London 10:00–12:30 −0.2R · New York −0.4R
 05 — IMPURITIES
-  23 trades over 1.5% risk (worst 3.0%) · 6 without a stop · 7 stops widened
-  5 rollover entries · 65 active days, 9 of them overtrading
+  50 trades over 1.5% risk (worst 3.0%) · 10 without a stop · 10 stops widened
+  13 rollover entries · 65 active days, 9 of them overtrading
 06 — DISCIPLINE IMPROVES
-  First 69 days: 163 trades, 83 impure (50.9%), avg 0.0R
-  Last 21 days:   57 trades,  9 impure (15.8%), avg +0.7R
+  First 69 days: 160 trades, 92 impure (57.5%), avg 0.0R
+  Last 21 days:   60 trades, 10 impure (16.7%), avg +0.8R
 07 — CONSTELLATION
-  1001 Gold Scalper     280 trades · exp +0.3R · PF 2.34 · baseline +0.3R
-  1002 London Breakout  127 trades · exp +0.5R · PF 3.30 · baseline +0.5R
-  1003 Grid Recovery    209 trades · exp  0.0R · PF 1.09 · baseline +0.3R
-  Correlation 1001 ↔ 1002 (daily P&L) 0.847 (target ≥ 0.600)
-  1003 expectancy: +0.3R over the first 60 days, −0.6R over the last 30
+  1001 Gold Scalper     294 trades · exp +0.2R · PF 1.70 · baseline +0.3R
+  1002 London Breakout  121 trades · exp +0.3R · PF 2.13 · baseline +0.5R
+  1003 Grid Recovery    199 trades · exp +0.1R · PF 1.32 · baseline +0.3R
+  Correlation 1001 ↔ 1002 (daily P&L) 0.836 (target ≥ 0.600)
+  1003 expectancy: +0.3R over the first 60 days, −0.3R over the last 30
 ```
 
 **Not built, on purpose**
 No engine module, no Karat, no UI. The story checks live inside the tests and
 the report script, where they are throwaway; §6 gets its real implementation
 in Stage 2.
+
+
+### Stage 2 — Analytics engine, Karat, Gap, Proof, Fineness, findings ✅ (2026-09-21)
+
+**What exists now** (`lib/engine/`, pure TypeScript, no I/O, no `Date.now()`)
+- `settings.ts` — every threshold §5–§7 leaves configurable, with the spec's
+  defaults. Nothing else in the folder holds a magic number.
+- `math.ts` / `time.ts` — total numeric helpers (never `NaN`, never `−0`) and
+  UTC date maths, including ISO weeks and broker-server midnight.
+- `enrich.ts` — the only module that reads raw positions. Per trade: initial
+  risk $, risk %, `noStop`, R, sessions (overlaps allowed), news proximity in
+  minutes, news/rollover windows, SL compliance, duration, MFE/MAE in R, the
+  revenge flag and its reason, and a list of impurities.
+- `karat.ts` — the six pillars, recency weighting, points, Karat, tiers, the
+  "Assaying…" state, and the §6.5 deduction contract.
+- `series.ts` — daily Karat over the whole history, plus the week-on-week delta.
+- `gap.ts` — the Gap in R and money under single-pillar attribution.
+- `proof.ts` — weekly Karat, the two buckets, the hiding rule.
+- `ea.ts` — per-magic performance, Fineness and its four components, drift,
+  pairwise daily-P&L correlation.
+- `stats.ts` — equity curve, session/hour/weekday buckets, calendar days,
+  ranked hour windows.
+- `findings.ts` — eleven deterministic Refinery findings, ranked by money.
+- `index.ts` — `runEngine(data, settings, asOf)` → one `AssayResult`.
+- 197 Vitest cases across nine files, plus `lib/engine/fixtures.ts` (no
+  assertions, just trades). `pnpm engine:report` prints the read-out below.
+- `vitest.config.ts` now resolves `@/…` the way Next does, so engine modules
+  can import `lib/format` in tests.
+
+**Fixture arithmetic** (`lib/engine/fixtures.ts`)
+$10,000 equity, 0.10 lots, 100 oz a lot, a 10.00 stop — $100 of risk, exactly
+1% of equity, exactly 1R. Every expected value in the tests is hand-worked from
+that, so a failure points at a formula rather than at a fixture.
+
+**Decisions taken** (the spec leaves each of these open)
+- **Revenge is pinned to the previous trade.** The previous trade is the last
+  *manual* trade to **close** before this one **opened**, and both triggers —
+  the 15-minute window and the 1.25× lot — are measured against it. Trigger one
+  does not scan further back for any losing close: a winner in between breaks
+  the run. EA trades are neither flagged nor eligible as a predecessor.
+- **Exits overrun divides by losses, not by all trades.** The pillar asks how
+  well losses are cut; dividing by every trade would reward whoever simply lost
+  less often, and §6 scores process, not outcome.
+- **Holding asymmetry uses unweighted medians.** A weighted median over a
+  handful of losers is unstable; recency already lives in the window.
+- **Overtrading weights a day by the mean of its trades' weights**, so a
+  blow-out day last week costs more than the same day five weeks ago.
+- **A news-and-rollover trade is counted once**, under news. The pillar counts
+  trades, not violations.
+- **`news-strategy` exempts the trade from Market Conditions entirely**, not
+  just from the news half.
+- **The tier is read from the displayed (one-decimal) Karat**, so a dial
+  reading 23.5K can never be labelled 22K.
+- **Stops are "widened" against the running stop**, not the original: pulling a
+  stop to breakeven and then back out is a widening; trailing it closer never is.
+  Removing a stop is the worst widening there is.
+- **The Gap's R is in each trade's own R units**, so `money = costR × initial
+  risk` holds on every line. A no-stop disaster lands on Exits, which is what
+  §6.3 means by "Stops has no direct cost line".
+- **Weekly Karat for Proof is unweighted**, and weeks under five manual trades
+  are dropped rather than bucketed — one trade can score 24K or 0K.
+- **The Vault's day Karat is that day's own trades, unweighted, no minimum.**
+  It is a mark on a day; the score is the 30-day window in `series.ts`.
+- **Fineness components are all "a fraction of what this EA's own baseline led
+  you to expect"** (§7 names the four components and their weights but no
+  formulas). A healthy EA therefore scores near 1 on each, and the label bands
+  (§7, widened during calibration below) read as degrees of degradation:
+  - *Expectancy stability* is measured in standard errors below baseline, the
+    same statistic as the drift alert: at baseline it is 1, at the drift
+    threshold 0.5, at twice the threshold 0. A raw `recent ÷ baseline` over 20
+    trades marked healthy EAs down for ordinary noise.
+  - *Drawdown vs baseline* compares the live drawdown to the baseline period's,
+    scaled by √n. No live history past the baseline scores 1.
+  - *Consistency* is the share of whole 20-trade blocks that made money.
+  - *Execution quality* is the account's median spread ÷ the spread the EA
+    paid. Slippage is not in the data — the connector sends the fill price,
+    never the requested one — so it is not guessed at.
+  - Fineness is `null` under 20 trades: not assayed rather than scored badly.
+- **Findings rank by money at stake**, costs and edges alike, and severity is
+  the share of the total Gap a finding carries — relative, because $400 is
+  critical on a $5,000 account and noise on a $500,000 one.
+- **Hour windows rank by total R, not average R.** Average alone crowns
+  whichever three hours held the fewest, luckiest trades.
+- **`runEngine` drops trades opened after `asOf`.** A snapshot must not know
+  about a trade that had not happened yet.
+
+**Calibration, after the first read-out (2026-09-22)**
+Three things were wrong when the engine first ran over the demo account, and
+all three were fixed outside the §6 formulas — the engine was doing what the
+spec says, so the demo data and the §7 label bands moved instead.
+
+1. **No impure weeks.** Every week scored 16.6K or better, so Your Proof had an
+   empty low bucket and §6.4 hid the card. The demo's two-phase plan is now
+   four (`MANUAL_PHASES` in `lib/demo/generate.ts`): `raw`, `mixed`, `solid`,
+   `refined`. Each phase carries its own cohort quotas *and* its own risk
+   multiplier and ceiling — sizing is the main lever on the Risk pillar, so the
+   same cohort risks 1.55% in the opening weeks and 0.68% in the closing ones.
+   The weekly arc now reads 11.9K · 12.4K · 16.2K · 13.8K … 23.6K · 23.6K:
+   Alloyed to Refined, with three weeks under 14K and Your Proof visible at
+   +30.0R a week. (Week three of the opening month scores 16.2K rather than
+   following the slide — it is a quiet week with one release in it. That is the
+   product's own thesis showing up in the data, so it was left alone.)
+2. **Fineness labelled healthy EAs as broken.** Bands starting at 995‰ left no
+   room for ordinary noise: Gold Scalper, trading to its baseline, read
+   "Watch". §7 now bands at 930 / 850 / 700, and the demo assays into three
+   different labels — 1001 Fine, 1002 Standard, 1003 Degraded — which is what
+   makes the Constellation worth looking at.
+3. **The EAs shared a random stream with the manual plan.** Re-planning a
+   manual phase re-rolled Gold Scalper's year, so the EA stories moved every
+   time the trader's did. The EAs now draw from `seed ^ EA_SEED_MASK`: still
+   one seed, still byte-identical output, but the two halves of the demo are
+   independent. London Breakout's per-trade dispersion was also tightened
+   (0.40 → 0.32) so its drawdown stays inside what its own first 50 trades
+   led you to expect; its day-to-day coefficient is untouched, so the 0.836
+   correlation with Gold Scalper survives.
+
+**Market Conditions is the largest Gap line, Revenge the second** — $15,526
+across 45 trades against $10,317 across 26. §6.3 attributes Revenge first, so
+what lands on Market Conditions is everything given away to a release that was
+not *also* a revenge trade, and the demo plants a bigger news habit than a
+revenge habit. Both are asserted in `lib/engine/demo.test.ts`.
+
+**The demo trader ends R-positive and money-negative, and stays that way.**
+Recalibrating the phases left manual trading at +41.9R for −$2,733, and that
+result is deliberate: it is the shape every surface from Stage 3 onwards is
+built to explain — the Refinery, the Karat Gap, the Purity Line, the
+Certificate. No later stage should rebalance the closing phases to put the
+account clearly up in money. The Stage 1 decision above is the standing one.
+
+**Not built, on purpose**
+No UI, no snapshot persistence, no AI. The engine writes nothing and reads
+nothing; Stage 3 renders `AssayResult`, and Stage 8 stores it.
+
+**`pnpm engine:report`**
+```
+KAVRIX · ENGINE REPORT
+════════════════════════════════════════════════════════════════════════
+  Source                                Demo data · seed 20260920
+  As of                                 2026-09-20T00:00:00.000Z
+  Trades                                834 · manual 220 · EA 614
+
+01 — THE ASSAY
+────────────────────────────────────────────────────────────────────────
+  Karat                                 23.1K · 22K · Refined
+  Points                                96.14 / 100
+  Delta vs last week                    +0.3K (from 22.8K)
+  Window                                2026-08-21 → 2026-09-20 · 77 manual trades
+
+02 — PILLARS
+────────────────────────────────────────────────────────────────────────
+  Risk                                  ██████████    24.3 / 25
+      −0.69  Risk above the 1.0% limit · 5 trades
+  Revenge                               ██████████    19.2 / 20
+      −0.44  Opened within 15 min of a loss · 1 trade
+      −0.35  Opened within 15 min of a loss, and upsized · 2 trades
+  Stops                                 ██████████    15.0 / 15
+  Exits                                 █████████·    14.1 / 15
+      −0.94  Losses worse than −1.1R · 3 trades
+  Overtrading                           ██████████    14.5 / 15
+      −0.50  More than 5 trades in a day · 1 day · 6 trades
+  Market Conditions                     █████████·     9.1 / 10
+      −0.68  Entered within 15 min of high-impact USD news · 7 trades
+      −0.26  Entered in the rollover window · 1 trade
+
+03 — KARAT GAP · 30-DAY WINDOW
+────────────────────────────────────────────────────────────────────────
+  Total                                 −$2,390.22 · −9.0R
+    Market Conditions                      −$1,659.75 ·    −6.1R · 5 trades
+    Revenge                                  −$728.02 ·    −3.0R · 2 trades
+    Risk                                       −$2.45 ·     0.0R · 1 trade
+  All 90 days                           −$26,700.37 · −100.3R
+    Market Conditions                     −$15,526.49 ·   −63.0R · 45 trades
+    Revenge                               −$10,317.36 ·   −34.3R · 26 trades
+    Risk                                     −$856.52 ·    −3.1R · 16 trades
+
+04 — YOUR PROOF
+────────────────────────────────────────────────────────────────────────
+  20K and above                         6 weeks · +13.7R a week
+  Under 14K                             3 weeks · −16.3R a week
+  Discipline paid                       +30.0R a week
+  Weeks scored                          W26 11.9K · W27 12.4K · W28 16.2K · W29 13.8K · W30 19.7K · W31 16.1K · W32 19.9K · W33 20.6K · W34 23.0K · W35 24.0K · W36 21.5K · W37 23.6K · W38 23.6K
+
+05 — THE REFINERY · TOP 3 FINDINGS
+────────────────────────────────────────────────────────────────────────
+  1. [critical] 65 trades opened within 15 min of a high-impact USD release, 51 of them losses, for −$17,827.61 and −62.8R.
+       impact                           −$17,827.61 · −62.8R · 65 trades
+  2. [strength] 07:00–10:00 UTC is your best window: 70 trades at +1.4R average, +$15,472.30.
+       impact                           +$15,472.30 · +96.3R · 70 trades
+  3. [warning] 9 days went past 5 trades, 56 trades in total, for −$10,653.89.
+       impact                           −$10,653.89 · −30.6R · 56 trades
+  Other findings                        revenge-cost, oversized-risk, exit-overrun, no-stop, rollover-entries, worst-weekday, ea-same-bet, ea-drift
+
+06 — CONSTELLATION · EA FINENESS
+────────────────────────────────────────────────────────────────────────
+    EA                                  trades   exp      PF    DD     recent-20  fineness  label
+    1001 · Gold Scalper                   294   +0.2R   1.70  −13.9R     +0.7R     942.9‰   Fine
+       components                       stability 100.0% · drawdown 100.0% · consistency 71.4% · execution 100.0%
+    1002 · London Breakout                121   +0.3R   2.13   −6.7R     +0.7R     863.4‰   Standard
+       components                       stability 100.0% · drawdown 65.6% · consistency 83.3% · execution 100.0%
+    1003 · Grid Recovery                  199   +0.1R   1.32  −18.1R     −0.4R     424.9‰   Degraded · drift
+       components                       stability 25.6% · drawdown 23.1% · consistency 77.8% · execution 97.9%
+    1001 ↔ 1002                         0.836  · same bet
+    1001 ↔ 1003                         -0.237
+    1002 ↔ 1003                         -0.242
+```
