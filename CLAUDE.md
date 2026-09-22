@@ -476,7 +476,7 @@ connector/                    KavrixConnector.mq5 + README
 - [x] 2 — Analytics engine + Karat + tests
 - [x] 2.5 — Statistical intelligence: confidence, personal baselines, Edge Map, Similar Trades,
   What-if, Discipline Replay, prop check (§6.6–§6.12). Engine only, no UI.
-- [ ] 3 — Assay dashboard (Dial, Pillars, Gap, Refinery, Proof)
+- [x] 3 — Assay dashboard (Dial, Pillars, Gap, Refinery, Proof)
   - **"Explain this number"**: every metric on every surface opens its formula, the trades
     behind it and its §6.6 confidence. Calm and factual — it explains, it does not reassure.
 - [ ] 4 — Gold Clock + Purity Line + Vault
@@ -1021,3 +1021,106 @@ band for EA Health is noted in §7 and belongs to Stage 6.
     Market Conditions                   4 breach days · −$6,552.85
   Note                                  Historical only. These are days that already happened, measured against a preset you set yourself — not a rule from any firm, and not a prediction.
 ```
+
+### Stage 3 — The Assay dashboard ✅ (2026-09-22)
+
+The first real surface. `/demo` renders the Assay over the demo account, server-side, from
+`runEngine` alone. **No engine module changed**: all 339 Stage 2/2.5 tests pass untouched, and
+every number on the page is read off `AssayResult` rather than computed in a component (§16).
+
+**Routes**
+- `app/demo/page.tsx` — the Assay. `dynamic = 'force-static'`, so the generator and the engine
+  run once at build time and the route is served as static HTML.
+- `app/demo/loading.tsx` — "Assaying…" with the gold-dust shimmer. Rarely seen on a prerendered
+  route; the copy is the product's, not the framework's.
+- `app/(marketing)/page.tsx` — `redirect('/demo')` until the landing lands in Stage 10. It sits
+  in the marketing group so Stage 10 replaces it rather than working around it.
+- `app/icon.svg` — the dial in miniature (obsidian face, gold scale, hand at 23K).
+- `lib/demo/assay.ts` — `getDemoAssay()`: generate, run the engine at `asOf = DEMO_END_MS`,
+  memoise. **Never the clock** — a demo whose score drifts as the deploy ages is a bug with a
+  story.
+
+**Components**
+- `components/app/` — `AppShell` (header, nav, account, period, the permanent "Demo data" badge,
+  footer) and `PrimaryNav`.
+- `components/viz/` — `AssayDial`, `PillarRings`, plus the two pure modules the tests aim at:
+  `dial.ts` (angles, tier arcs, ticks, the alt text) and `rings.ts` (ring thresholds).
+- `components/assay/` — `AssayScreen`, `KaratCard`, `GapCard`, `RefineryCard`, `ProofCard`,
+  `ExplainProvider`, `ExplainDrawer`, `ExplainButton`, and `explain.ts`, which builds every
+  explanation server-side.
+- `components/ui/CountUp.tsx` — the mechanical counter.
+
+**39 new Vitest cases** across four files (`dial.test.ts`, `rings.test.ts`,
+`AssayDial.test.tsx`, `app/demo/page.test.tsx`). **378 tests in total, all passing.** The render
+test reads its expected values out of `getDemoAssay()`, so it asserts the screen shows *the
+engine's* number, never that the number is any particular one — that is the engine's own tests'
+job. `vitest.config.ts` now also collects `components/**` and `app/**`.
+
+**Decisions taken**
+- **The page is a server component; only four things are client code** — the dial's sweep, the
+  counters, the Gap's period toggle and the Explain drawer. The browser is handed the props each
+  visual needs, never the `AssayResult`: it holds 834 enriched trades, and the Assay draws six
+  pillars and three findings.
+- **Everything the drawer shows is pre-formatted on the server.** `explain.ts` emits strings, so
+  `lib/format.ts` stays the one place decimals are decided (§16) and no engine code ships to the
+  browser.
+- **The dial is a sector dial, not a gauge.** The readout sits on a centre medallion and the hand
+  passes *behind* it, so the Karat value is never crossed by a moving part. The hand is therefore
+  drawn only in the annulus between the medallion and the scale.
+- **The server renders the hand at its final angle**, and the sweep snaps it back to 0K on mount
+  before easing up. A reader without JavaScript is shown the score, not a dial reading zero. The
+  counters work the same way: the markup is correct before any script runs.
+- **The count-up writes `textContent`, not state.** The value never changes except when a prop
+  does, so driving 60 fps through React would re-render the tree for nothing.
+- **Tier arcs are painted in the gold family only** — gold-deep at low opacity for Raw Ore,
+  brightening to gold-light at 24K. §9 reserves jade and oxblood for P&L, and a tier is not a P&L.
+- **The Karat Gap bar is oxblood throughout, shaded per pillar.** The Gap is a loss; four
+  unrelated hues would make a bill look like a palette. The legend carries the identification.
+- **Your Proof diverges from a centre line.** The two numbers usually have opposite signs and the
+  whole point of the card is the distance between them.
+- **The drawer unmounts when closed** rather than hiding, so its content is never in the tab
+  order by accident. Focus moves in on open and returns on close, Tab is trapped, Esc closes,
+  and the page behind it is locked from scrolling.
+- **The surfaces that do not exist yet are shown, not hidden** — Ledger, Vault, Constellation and
+  Wrapped are `aria-disabled` spans with the stage they arrive in, never links that 404.
+- **The header is true obsidian, not a translucent panel.** A blurred overlay over a warm-black
+  page reads grey. Verified in the browser: `body` computes to `rgb(10, 10, 12)` and a card to
+  `rgb(17, 17, 20)` — exactly `--bg` and `--surface-1`.
+
+**Two bugs fixed on the way, both outside Stage 3's own code**
+1. **The `sheen` utility left the wordmark invisible for most of its cycle.** One gradient layer
+   with `background-clip: text` and `background-repeat: no-repeat` means transparent glyphs
+   wherever the gradient is not. It is now two layers — a solid gold base that never moves and a
+   highlight sweeping across it — and the keyframes animate only the highlight's position.
+2. **`/demo` logged a 404 for `favicon.ico`**, which cost 4 points of Best Practices. `app/icon.svg`
+   declares a real icon and the request stops.
+
+**Lighthouse** (Lighthouse 13.5, production build, `next start`, headless Chromium)
+
+| | Performance | Accessibility | Best practices | SEO |
+|---|---|---|---|---|
+| Desktop | **100** | **100** | **100** | **100** |
+| Mobile | **96** | **100** | **100** | **100** |
+
+Desktop FCP 0.3 s · LCP 0.6 s · CLS 0.006 · TBT 0 ms.
+Mobile FCP 0.9 s · LCP 2.7 s · CLS 0.004 · TBT 90 ms.
+
+`pnpm lighthouse` re-runs the desktop pass against a local `next start`; point it at `/demo` on
+whatever port is serving. Lighthouse is a dev dependency only — nothing in the table above is a
+claim the product makes to a trader, and per §17 Stage 11 these numbers belong in the README,
+never in the app.
+
+**Verified in a real browser** (CDP, not just in tests): no horizontal scroll at 375 px or
+1440 px (`scrollWidth === clientWidth` at both), the drawer opens from the dial, a pillar ring,
+a Gap line and a finding, Esc closes it, and focus returns to the number that opened it.
+
+**Not built, on purpose**
+No Gold Clock, no Purity Line, no Vault, no Ledger — those are Stages 4 and 5, and the nav says
+so. No AI copy: the Refinery shows the engine's own templated headlines, which is what §2 means
+by the product working fully without a model.
+
+**Left standing, for the product owner to call**
+`/styleguide` is still there. §0's note says it goes "once the real surfaces exist", and the
+Assay is the first one — but it is also the only one, and the styleguide is still the only place
+`Table`, `Badge` and `Button` are exercised. Suggest deleting it at Stage 5, when the Ledger
+gives the table primitives a real home.

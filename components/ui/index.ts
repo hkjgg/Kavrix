@@ -4,6 +4,8 @@ export { Button, buttonBase, buttonSize, buttonVariant } from './Button';
 export type { ButtonProps, ButtonSize, ButtonVariant } from './Button';
 export { Card } from './Card';
 export type { CardProps } from './Card';
+export { CountUp, formatCountUp } from './CountUp';
+export type { CountUpKind, CountUpProps } from './CountUp';
 export { Label } from './Label';
 export type { LabelProps } from './Label';
 export { SectionHeading } from './SectionHeading';
