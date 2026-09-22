@@ -81,6 +81,44 @@ export interface EngineSettings {
   eaConsistencyBlockTrades: number;
   /** Daily P&L correlation at or above this flags two EAs as the same bet. */
   eaSameBetCorrelation: number;
+
+  /* — Confidence (§6.6) — */
+  /** Resamples in the bootstrap behind every confidence interval. */
+  bootstrapResamples: number;
+  /** Floor the resample count tapers to on a very large group. */
+  bootstrapMinResamples: number;
+  /** Observations one group may resample in total (`resamples × n`). */
+  bootstrapSampleBudget: number;
+  /** Trades needed before a 95%-interval claim may be called Strong. */
+  confidenceStrongMinTrades: number;
+  /** Trades needed before an 80%-interval claim may be called Moderate. */
+  confidenceModerateMinTrades: number;
+
+  /* — Personal baselines (§6.7) — */
+  /** Days of behaviour compared against the trader's own baseline. */
+  baselineRecentDays: number;
+  /** Trades the baseline needs before "outside your normal" may be claimed. */
+  baselineMinTrades: number;
+
+  /* — Edge Map (§6.8) — */
+  /** Cells with fewer trades than this are not tested at all. */
+  edgeMapMinCellTrades: number;
+  /** False-discovery rate the Benjamini–Hochberg correction controls. */
+  edgeMapAlpha: number;
+  /** Strengths and weaknesses reported from the map. */
+  edgeMapTopCells: number;
+
+  /* — Similar Trades (§6.9) — */
+  /** Nearest neighbours returned. */
+  similarNeighbours: number;
+  /** Prior trades the entry-volatility feature is measured over. */
+  similarVolatilityLookback: number;
+
+  /* — Discipline Replay (§6.11) — */
+  /** Impurities this close together form a tilt episode. */
+  tiltWindowMinutes: number;
+  /** Impurities needed before a run counts as a tilt episode. */
+  tiltMinImpurities: number;
 }
 
 /** The shipped defaults, exactly as CLAUDE.md §5–§7 states them. */
@@ -119,6 +157,25 @@ export const DEFAULT_SETTINGS: EngineSettings = {
   eaDriftStandardErrors: 2,
   eaConsistencyBlockTrades: 20,
   eaSameBetCorrelation: 0.6,
+
+  bootstrapResamples: 2_000,
+  bootstrapMinResamples: 200,
+  bootstrapSampleBudget: 400_000,
+  confidenceStrongMinTrades: 20,
+  confidenceModerateMinTrades: 10,
+
+  baselineRecentDays: 7,
+  baselineMinTrades: 20,
+
+  edgeMapMinCellTrades: 8,
+  edgeMapAlpha: 0.05,
+  edgeMapTopCells: 3,
+
+  similarNeighbours: 12,
+  similarVolatilityLookback: 20,
+
+  tiltWindowMinutes: 60,
+  tiltMinImpurities: 2,
 };
 
 /** Fills a partial settings object with the defaults. */

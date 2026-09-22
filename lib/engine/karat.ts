@@ -473,6 +473,15 @@ export interface KaratOptions {
   minimumTrades?: number;
   /** Window length in days. Defaults to the rolling window in settings. */
   windowDays?: number;
+  /**
+   * The caller has already selected the manual trades inside the window, in
+   * entry order, so the filter here can be skipped.
+   *
+   * Only `series.ts` sets it: it walks one window across the whole history and
+   * would otherwise re-filter every trade on the account once per day. It
+   * changes nothing about the score — the same trades are scored either way.
+   */
+  preWindowed?: boolean;
 }
 
 /**
@@ -492,7 +501,10 @@ export function computeKarat(
   const minimumTrades = options.minimumTrades ?? settings.minimumTrades;
   const windowStartMs = asOfMs - windowDays * DAY_MS;
 
-  const scored = tradesInWindow(manualTrades(trades), windowStartMs, asOfMs);
+  const scored =
+    options.preWindowed === true
+      ? trades
+      : tradesInWindow(manualTrades(trades), windowStartMs, asOfMs);
   const weightOf: WeightOf = weighted
     ? (trade) => recencyWeight(trade.openTimeMs, asOfMs, settings.recencyHalfLifeDays)
     : () => 1;

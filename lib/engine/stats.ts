@@ -7,6 +7,8 @@
  * measured.
  */
 
+import type { ConfidenceResult } from './confidence';
+import { EMPTY_CONFIDENCE, describeTrades } from './confidence';
 import type { EnrichedTrade } from './enrich';
 import { SESSIONS, manualTrades } from './enrich';
 import { karatFromPoints, pointsFromPillars, scorePillars } from './karat';
@@ -37,6 +39,13 @@ export interface BucketStats {
   netMoney: number;
   /** Percentage, 0–100. */
   winRate: number;
+  /**
+   * How much weight this bucket can carry (§6.6): the interval around its mean
+   * R, the Wilson interval around its win rate, and the Strong / Moderate /
+   * Weak label. Every breakdown the UI draws has to be able to say how sure it
+   * is — a 4-trade hour that averages +2R is not an edge.
+   */
+  confidence: ConfidenceResult;
 }
 
 export interface CalendarDay {
@@ -73,6 +82,8 @@ function bucket(
   key: string,
   label: string,
   trades: readonly EnrichedTrade[],
+  settings?: EngineSettings,
+  withConfidence = true,
 ): BucketStats {
   const rs = trades.map((trade) => trade.rMultiple);
   return {
@@ -86,6 +97,9 @@ function bucket(
       safeDivide(trades.filter((trade) => trade.isWin).length * 100, trades.length, 0),
       1,
     ),
+    confidence: withConfidence
+      ? describeTrades(trades, { settings })
+      : EMPTY_CONFIDENCE,
   };
 }
 
@@ -135,12 +149,13 @@ export function computeStats(
       session.key,
       session.label,
       population.filter((trade) => trade.sessions.includes(session.key)),
+      settings,
     ),
   );
   // 21:00–00:00 UTC belongs to no session in §5; the trades still happened.
   const outside = population.filter((trade) => trade.sessions.length === 0);
   if (outside.length > 0) {
-    bySession.push(bucket('none', 'Outside sessions', outside));
+    bySession.push(bucket('none', 'Outside sessions', outside, settings));
   }
 
   const byHour: BucketStats[] = [];
@@ -150,6 +165,7 @@ export function computeStats(
         String(hour).padStart(2, '0'),
         `${String(hour).padStart(2, '0')}:00`,
         population.filter((trade) => trade.hourUtc === hour),
+        settings,
       ),
     );
   }
@@ -159,6 +175,7 @@ export function computeStats(
       String(index),
       name,
       population.filter((trade) => trade.weekdayUtc === index),
+      settings,
     ),
   );
 
@@ -220,6 +237,15 @@ export interface HourWindow {
   avgR: number;
   netMoney: number;
   winRate: number;
+  /**
+   * The trades in the window, so the caller can attach confidence (§6.6) to the
+   * one window it actually reports.
+   *
+   * The ranking itself does not bootstrap: twenty-two overlapping windows is
+   * twenty-two bootstraps to publish one of them, and the finding that quotes
+   * the winner measures its own sample anyway.
+   */
+  tradeIds: string[];
 }
 
 export interface HourWindowOptions {
@@ -254,7 +280,7 @@ export function rankHourWindows(
       (trade) => trade.hourUtc >= start && trade.hourUtc < end,
     );
     if (inWindow.length < minTrades) continue;
-    const stats = bucket(String(start), `${start}–${end}`, inWindow);
+    const stats = bucket(String(start), `${start}–${end}`, inWindow, undefined, false);
     windows.push({
       startHour: start,
       endHour: end,
@@ -264,6 +290,7 @@ export function rankHourWindows(
       avgR: stats.avgR,
       netMoney: stats.netMoney,
       winRate: stats.winRate,
+      tradeIds: inWindow.map((trade) => trade.id),
     });
   }
 
