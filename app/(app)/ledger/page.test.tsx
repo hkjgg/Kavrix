@@ -72,7 +72,8 @@ describe('/ledger', () => {
   it('lights the Ledger in the nav and keeps the unbuilt surfaces dimmed', () => {
     expect(markup).toMatch(/aria-current="page"[^>]*href="\/ledger"/);
     expect(markup).toContain('href="/demo"');
-    for (const surface of ['Vault', 'Constellation', 'Wrapped']) {
+    expect(markup).toContain('href="/vault"');
+    for (const surface of ['Constellation', 'Wrapped']) {
       expect(markup).toMatch(new RegExp(`aria-disabled="true" title="${surface} arrives in Stage \\d"`));
     }
     expect(markup).toContain('Demo data');

@@ -397,6 +397,16 @@
   }
 }
 
+/* Revealed top to bottom — the Discipline Replay's timeline (Stage 5). */
+@keyframes kavrix-enter-drop {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
 /* A disciplined week: dim like the rest, then resolving to bright gold. */
 @keyframes kavrix-enter-resolve {
   0% {
@@ -468,6 +478,11 @@
     animation: kavrix-enter-resolve var(--t, 900ms) ease-out var(--d, 0ms) 1 both;
   }
 
+  .enter-drop {
+    animation: kavrix-enter-drop var(--t, 1200ms) cubic-bezier(0.45, 0, 0.55, 1)
+      var(--d, 0ms) 1 both;
+  }
+
   /* Waiting in the wings: held on the first frame until the scene is seen. */
   .scene:not([data-inview])
     :is(
@@ -479,7 +494,8 @@
       .enter-sweep,
       .enter-engrave,
       .enter-wipe,
-      .enter-resolve
+      .enter-resolve,
+      .enter-drop
     ) {
     animation-play-state: paused;
   }
@@ -528,4 +544,28 @@
 .ledger-table {
   content-visibility: auto;
   contain-intrinsic-size: auto 2900px;
+}
+
+/* ---------------------------------------------------------------------------
+   Stage 5 — the Vault and the Purity Line
+   --------------------------------------------------------------------------- */
+
+/* A What-if series switched on after arrival: drawn left to right, once.
+   Work, not cinema: 700 ms and done. The global reduced-motion rule above
+   collapses it to an instant. */
+@utility wipe-in {
+  animation: kavrix-enter-wipe 700ms cubic-bezier(0.45, 0, 0.55, 1) both;
+}
+
+/* The ledge each week of ingots stands on: a hairline catching the light in
+   the middle and falling away at both ends. */
+@utility vault-shelf {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--gold) 26%, transparent) 18%,
+    color-mix(in srgb, var(--gold-light) 34%, transparent) 50%,
+    color-mix(in srgb, var(--gold) 26%, transparent) 82%,
+    transparent 100%
+  );
 }
