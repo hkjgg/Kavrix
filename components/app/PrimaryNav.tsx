@@ -4,7 +4,7 @@ import { cn } from '@/lib/cn';
 /**
  * The product's five surfaces (CLAUDE.md §4).
  *
- * The Assay, the Ledger and the Vault exist (Stages 3–5). The rest are shown, not
+ * The Assay, the Ledger, the Vault and the Constellation exist (Stages 3–6). The rest are shown, not
  * hidden — a reader should be able to see where the product goes — but they
  * are inert: an `aria-disabled` span, never a link that 404s.
  */
@@ -22,7 +22,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'assay', label: 'Assay', href: '/demo', stage: 'Stage 3' },
   { key: 'ledger', label: 'Ledger', href: '/ledger', stage: 'Stage 4' },
   { key: 'vault', label: 'Vault', href: '/vault', stage: 'Stage 5' },
-  { key: 'constellation', label: 'Constellation', href: null, stage: 'Stage 6' },
+  { key: 'constellation', label: 'Constellation', href: '/constellation', stage: 'Stage 6' },
   { key: 'wrapped', label: 'Wrapped', href: null, stage: 'Stage 7' },
 ];
 

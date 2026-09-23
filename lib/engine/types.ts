@@ -110,6 +110,13 @@ export interface Ea {
    * falls back to the EA's first 50 live trades.
    */
   baselineExpectancyR: number | null;
+  /**
+   * Backtest dispersion — the standard deviation of R per trade — entered
+   * with the expectancy. With both, EA Health draws a Monte Carlo drawdown
+   * band from the backtest (§7). Absent or `null`, it falls back to the
+   * baseline period's drawdown.
+   */
+  baselineStdDevR?: number | null;
 }
 
 /**

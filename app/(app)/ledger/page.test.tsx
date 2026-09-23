@@ -73,9 +73,8 @@ describe('/ledger', () => {
     expect(markup).toMatch(/aria-current="page"[^>]*href="\/ledger"/);
     expect(markup).toContain('href="/demo"');
     expect(markup).toContain('href="/vault"');
-    for (const surface of ['Constellation', 'Wrapped']) {
-      expect(markup).toMatch(new RegExp(`aria-disabled="true" title="${surface} arrives in Stage \\d"`));
-    }
+    expect(markup).toContain('href="/constellation"');
+    expect(markup).toMatch(/aria-disabled="true" title="Wrapped arrives in Stage \d"/);
     expect(markup).toContain('Demo data');
   });
 });

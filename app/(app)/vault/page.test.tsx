@@ -144,9 +144,8 @@ describe('/vault', () => {
   it('lights the Vault in the nav and keeps the unbuilt surfaces dimmed', () => {
     expect(markup).toMatch(/aria-current="page"[^>]*href="\/vault"/);
     expect(markup).toContain('href="/ledger"');
-    for (const surface of ['Constellation', 'Wrapped']) {
-      expect(markup).toMatch(new RegExp(`aria-disabled="true" title="${surface} arrives in Stage \\d"`));
-    }
+    expect(markup).toContain('href="/constellation"');
+    expect(markup).toMatch(/aria-disabled="true" title="Wrapped arrives in Stage \d"/);
     expect(markup).toContain('Demo data');
   });
 });

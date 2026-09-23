@@ -169,13 +169,36 @@ describe('§11 story 5 — EA 1003 is drifting', () => {
     expect(eas.get(1002)?.drift.alert).toBe(false);
   });
 
-  it('assays the three EAs into three different bands (§7)', () => {
+  it('assays the two healthy EAs Fine and Grid Recovery Degraded (§7)', () => {
     expect(eas.get(1001)?.label).toBe('Fine');
     expect(eas.get(1001)?.fineness ?? 0).toBeGreaterThanOrEqual(930);
-    expect(eas.get(1002)?.label).toBe('Standard');
-    expect(eas.get(1002)?.fineness ?? 0).toBeGreaterThanOrEqual(850);
+    expect(eas.get(1002)?.label).toBe('Fine');
+    expect(eas.get(1002)?.fineness ?? 0).toBeGreaterThanOrEqual(930);
     expect(eas.get(1003)?.label).toBe('Degraded');
     expect(eas.get(1003)?.fineness ?? 0).toBeLessThan(700);
+  });
+
+  it('measures every drawdown against a Monte Carlo band from the backtest (§7)', () => {
+    for (const magic of [1001, 1002, 1003]) {
+      expect(eas.get(magic)?.drawdownBasis).toBe('monte-carlo');
+      expect(eas.get(magic)?.drawdownBand?.paths).toBe(2_000);
+    }
+    // The healthy two draw down inside what their backtests predict…
+    expect(eas.get(1001)?.drawdownBand?.inside).toBe(true);
+    expect(eas.get(1002)?.drawdownBand?.inside).toBe(true);
+    // …Grid Recovery falls further than any simulated path.
+    expect(eas.get(1003)?.drawdownBand?.inside).toBe(false);
+    expect(eas.get(1003)?.drawdownBand?.livePercentile).toBe(1);
+    // The scalper and the breakout bunch their trades on one daily bias; the grid does not.
+    expect(eas.get(1001)?.drawdownBand?.intradayCorrelation ?? 0).toBeGreaterThan(0.5);
+    expect(eas.get(1003)?.drawdownBand?.intradayCorrelation ?? 1).toBeLessThan(0.2);
+  });
+
+  it('draws the drift series under the band where the alert fires', () => {
+    const series = eas.get(1003)?.driftSeries ?? [];
+    expect(series.at(-1)?.below).toBe(true);
+    expect(series.some((point) => !point.below)).toBe(true);
+    expect(eas.get(1001)?.driftSeries.at(-1)?.below).toBe(false);
   });
 
   it('sees the degradation start where the generator planted it', () => {
@@ -202,6 +225,15 @@ describe('§11 story 6 — EA 1001 and 1002 take the same bet', () => {
     );
     expect(pair?.correlation).toBe(0.836);
     expect(pair?.sameBet).toBe(true);
+    // Measured over the days both traded — every demo trading day.
+    expect(pair?.overlapDays).toBe(65);
+    expect(pair?.enoughOverlap).toBe(true);
+  });
+
+  it('sums it up in one row', () => {
+    expect(result.constellation.summary.eaCount).toBe(3);
+    expect(result.constellation.summary.sameBetPairs).toBe(1);
+    expect(result.constellation.summary.driftingMagics).toEqual([1003]);
   });
 
   it('does not flag either of them against Grid Recovery', () => {

@@ -369,7 +369,7 @@ export function computeFindings(input: FindingsInput): Finding[] {
 
   /* — EAs taking the same bet (§7) — */
   for (const pair of constellation.correlations) {
-    if (!pair.sameBet) continue;
+    if (!pair.sameBet || pair.correlation === null) continue;
     const a = constellation.eas.find((ea) => ea.magic === pair.a);
     const b = constellation.eas.find((ea) => ea.magic === pair.b);
     if (a === undefined || b === undefined) continue;

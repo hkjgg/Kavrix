@@ -36,3 +36,14 @@ Everything here is **V2 or later**. Nothing on this list is built in V1
   story, not a replay: price candles under the day chart (needs a bar source, see above), a
   side-by-side of two days, a shareable "day card" in the Certificate's style, and chapter
   sentences rewritten by the AI layer (Stage 9) from the same engine JSON.
+- **Backtest import for the drawdown band (Stage 6).** The Monte Carlo band draws from a normal
+  with the backtest's expectancy and dispersion, because that is all a user types in. An MT5
+  strategy-tester report import would let the band resample the backtest's actual trades (fat
+  tails included) and its own day structure, instead of borrowing the live history's ρ.
+- **Slippage in execution quality (Stage 6).** Needs the connector to send the requested price
+  with each fill; until then the 0.10 component is spread only.
+- **EA baseline in Settings (Stage 6).** Backtest expectancy and dispersion per magic number are
+  read from `eas`; entering and editing them is a Settings screen, alongside Stage 8's accounts.
+- **The Constellation over time (Stage 6).** A month-by-month replay of the sky — stars dimming
+  as an EA drifts, threads thickening as two EAs converge — would show *when* a pair became one
+  bet. Needs per-period Fineness from the engine, not a re-run in the page.

@@ -271,21 +271,47 @@ drawdown % — with a generic default (5% / 10%). **It names no firm and claims 
 
 ## 7. EA Health — Fineness (‰)
 
-Per EA (grouped by **magic number**), shown in **Constellation**.
+Per EA (grouped by **magic number**), shown in **Constellation**. EA trades are outside the
+Karat Score and the Gap (§6).
 
-- Metrics: trades, net R, profit factor, expectancy (R), max drawdown, recent-20 expectancy.
-- **Baseline** = user-entered backtest expectancy, else the EA's first 50 live trades.
+- Metrics: trades, net R, profit factor, expectancy (R), max drawdown, recent-20 expectancy,
+  volume (lots — the Constellation sizes a star by it).
+- **Baseline** = user-entered backtest expectancy, else the EA's first 50 live trades. A backtest
+  may also carry a **dispersion** (SD of R per trade), which is what the Monte Carlo band needs.
 - **Fineness** (0–999.9‰) = 1000 × (0.40 expectancy stability + 0.30 drawdown vs baseline
-  + 0.20 consistency + 0.10 execution quality [spread/slippage]). Each component 0–1.
-- Labels: ≥ 930 Fine · ≥ 850 Standard · ≥ 700 Watch · < 700 Degraded.
-- **Drift alert**: recent-20 expectancy more than 2 standard errors below baseline.
-- **Correlation**: Pearson correlation of daily P&L between EAs; ≥ 0.6 → flag "same bet".
-- **Monte Carlo drawdown band (Stage 6).** Where a backtest expectancy and dispersion are
-  entered, resample the backtest's trade distribution to a band of drawdowns the EA should be
-  expected to produce, and show the live drawdown against it. Deterministic and seeded like
-  every other resample in the engine (§6.6). Until it exists, `drawdownVsBaseline` compares the
-  live drawdown to the baseline period's, scaled by √n — a band says "this is inside what this
-  EA does", which a single ratio cannot.
+  + 0.20 consistency + 0.10 execution quality [spread/slippage]), capped at 999.9. Each component
+  0–1. Under 20 trades Fineness is `null`: not assayed, rather than scored badly.
+- Labels: ≥ 930 Fine · ≥ 850 Standard · ≥ 700 Watch · < 700 Degraded. (Confirmed again at
+  Stage 6, 2026-09-23: 995/950/900 would label an EA trading to its backtest "Watch".)
+
+**The four components** (`lib/engine/ea.ts`). Each is "a fraction of what the EA's own baseline
+led you to expect", so an EA performing as advertised scores 1 on each.
+
+| Component | Weight | Formula |
+|---|---|---|
+| Expectancy stability | 0.40 | `z = (baseline − recent20) ÷ SE`, `SE = sd(recent20) ÷ √20`. Score `1` if `z ≤ 0`, else `clamp(1 − z ÷ (2k), 0, 1)`, `k` = drift threshold (2). So 0.5 exactly at the drift line, 0 at 4 SE. With no SE (fewer than 2 recent trades or no spread): `recent ÷ baseline`, clamped, 1 at or above baseline. |
+| Drawdown vs baseline | 0.30 | **With a Monte Carlo band:** `1` if live max DD ≤ band p95, else `p95 ÷ liveDD`. **Without:** allowance `A = max(DD(first 50), 1R) × √(n_live ÷ 50)` over the trades after the baseline; `1` if live DD ≤ A, else `A ÷ liveDD`. No live history past the baseline → `1`. |
+| Consistency | 0.20 | Share of whole 20-trade blocks, in close order, with a positive sum. A history shorter than one block is one block. |
+| Execution quality | 0.10 | `clamp(account median entry spread ÷ this EA's mean entry spread, 0, 1)`. Slippage is not in the data (the connector sends the fill, never the requested price), so it is not guessed at. |
+
+- **Drift alert**: recent-20 expectancy more than 2 standard errors below baseline — `z > k`.
+  The engine exposes the numbers behind it: baseline, recent-20, `SE`, `k` and the threshold
+  `baseline − k × SE`, plus the **drift series** — the same test after every trade from the
+  20th, with the band `baseline ± k × SE` of *that* window. Its last point is the live alert.
+- **Correlation**: Pearson correlation of daily P&L (keyed by close day) between every pair of
+  EAs, **over the days both traded only** — a day one EA sat out is not a 0, it is a day with no
+  bet to compare. The overlap day count is reported; **under 10 shared days** the pair is
+  "not enough overlap" and has no number. ≥ 0.6 → flag "same bet".
+- **Monte Carlo drawdown band (Stage 6).** Where a backtest expectancy **and** dispersion are
+  entered: 2,000 seeded paths (tapering to 200 past 1,000,000 simulated trades), each laid over
+  the EA's own live trading days, every trade `R = μ + σ(√ρ·z_day + √(1−ρ)·z_trade)` with μ, σ
+  from the backtest. `ρ` is the **intraclass correlation of the EA's live R within a close day**
+  (`mean same-day eᵢeⱼ ÷ mean e²`, `e = R − mean R`, clamped 0–0.95): a backtest says nothing
+  about how trades bunch, and an EA that takes five scalps on one bias is one bet five times —
+  drawing them independently would put every such EA outside its band for ordinary noise. The
+  band is p5–p95 of the simulated max drawdowns; the live drawdown is placed in it
+  (`livePercentile`, `inside` = ≤ p95). The shape of the days comes from live data, every number
+  from the backtest. Without a dispersion, `drawdownVsBaseline` falls back to the baseline period.
 
 ---
 
@@ -500,11 +526,13 @@ components/
   viz/                        AssayDial, GoldClock, PurityLine, Refinery,
                               Hallmark, VaultCalendar, Constellation, AssayCertificate
                               (+ pure geometry: dial.ts, instrument.ts, rings.ts, hallmark.ts,
-                              purity.ts, ingot.ts)
+                              purity.ts, ingot.ts, constellation.ts)
   assay/                      the Assay page: AssayInstrument (dial + PillarRings sub-dials),
                               scenes (incl. the Purity Line + What-if), Explain drawer
   vault/                      the Vault: view builder (shelves, ingots, keyboard), screen,
                               Day Assay (view, chart geometry, panel)
+  constellation/              the Constellation: view builder, screen, EA panel, drift chart
+                              geometry, correlation matrix
   ledger/                     the Ledger screen (client: filters, table, keyboard, export)
   dossier/                    the Trade Dossier: view builder, screen, price chart
   ui/                         primitives (Card, Label, Stat, Button, Table)
@@ -513,7 +541,7 @@ lib/
                               confidence, baselines, edgemap, similar, counterfactual, replay,
                               dayStory, prop
   demo/                       deterministic generator (+ memoised Assay, Ledger rows, candles,
-                              Vault)
+                              Vault, Constellation)
   dates.ts                    UTC calendar words for day keys, without Intl — browser-safe
   ledger/                     rows, query (filter/sort/URL), summary, CSV, keyboard, pack —
                               browser-safe except rows.ts
@@ -563,8 +591,11 @@ connector/                    KavrixConnector.mq5 + README
     the Dossier, What-if with the engine's six scenarios.
   - **Vault redesign (2026-09-23):** bullion ingots (material = Karat, assay strip = P&L) and the
     **Day Assay** replacing the Replay's text list — chart, engine-built chapters, day receipt.
-- [ ] 6 — Constellation (EA Health, Fineness, correlation)
+- [x] 6 — Constellation (EA Health, Fineness, correlation)
   - **Monte Carlo drawdown band from the backtest** for EA Health (§7).
+  - `/constellation`: EAs as stars on a frozen, seeded force layout (distance = 1 − correlation),
+    the EA panel (Fineness hallmark, component bars, drift chart, band, correlations, into the
+    Ledger), a summary row, a correlation matrix, `?ea=` in the URL.
 - [ ] 7 — Wrapped + Assay Certificate export
   - The Certificate and `/verify/[serial]` show **only** Karat, tier, Hallmarks, period and
     trade count. **Never money, R totals or balances** — a shareable card is a public surface,
@@ -1618,3 +1649,113 @@ Gap already produce.
 zooms and dims, hovering a mark lights its chapter, Esc twice restores then closes, the shelf
 sweep plays once per month, and under `prefers-reduced-motion` the page has no animations.
 
+### Stage 6 — Constellation: EA Health, Fineness, correlation ✅ (2026-09-23)
+
+An engine-and-surface stage. **No Karat, Gap or Replay formula changed**: every change in
+`lib/engine/` is in `ea.ts` (plus four settings, one optional `Ea` field and a null guard in
+`findings.ts`). Of the 629 earlier tests, only the ones this stage meant to change were
+rewritten — the two union-grid correlation cases, the demo's "three different bands" case (see
+below) and the nav assertions that expected Constellation dimmed; the rest pass untouched.
+Every figure on the new page is read off `AssayResult.constellation`.
+
+**Engine (`lib/engine/ea.ts`, extended, not duplicated)**
+- **The drift alert explains itself**: `standardErrorR`, `thresholdStandardErrors` and
+  `thresholdR` (`baseline − k × SE`) ride along, and `driftSeries` is the same test after every
+  trade from the 20th, each with its own window's `baseline ± k × SE` band. Its last point is the
+  live alert (asserted).
+- **Monte Carlo drawdown band** (§7): `intradayCorrelation`, `simulateDrawdowns`,
+  `drawdownBand`, `drawdownVsBand`, `drawdownPathCount`. Once a backtest dispersion is entered it
+  is what the 0.30 drawdown component reads; `drawdownBasis` says which basis was used.
+- **Correlation over shared days only**, with `overlapDays` and `enoughOverlap`; under
+  `eaMinOverlapDays` (10) the correlation is `null` and never a same bet.
+- `volumeLots` per EA, and `summary` (EA count, assayed count, average Fineness, same-bet pairs,
+  drifting magics) on `ConstellationResult`.
+- Settings: `eaMinOverlapDays` 10, `eaDrawdownPaths` 2,000, `eaDrawdownMinPaths` 200,
+  `eaDrawdownSampleBudget` 1,000,000. `Ea` gained optional `baselineStdDevR`.
+
+**Surface**
+- `app/(app)/constellation/page.tsx` — `force-static`, `04 — Constellation`. The force layout
+  runs at build time; the open EA is `?ea=` (the Ledger's `useLocationSearch`), written with
+  `replaceState`.
+- `components/viz/constellation.ts` (pure: layout, radii, tones, threads, field) and
+  `Constellation.tsx` (the sky); `components/constellation/` — `constellation.ts` (view builder,
+  strings only), `driftChart.ts`, `ConstellationScreen.tsx`, `EaPanel.tsx`,
+  `CorrelationMatrix.tsx`, `ConstellationBody.tsx`; `lib/demo/constellation.ts`.
+- `d3-force` added (ISC), used at build time only — no simulation ships to the browser.
+- Nav: **Constellation is a live link everywhere**, lit on `/constellation`. Wrapped stays dimmed.
+- **71 new Vitest cases, 700 in total, all passing**: every component formula, the drift numbers
+  and series against a hand-worked fixture, ρ by hand, the band's determinism and exact cases,
+  shared-day correlation (and what a zero-filled grid would have said), the overlap minimum, the
+  summary, layout determinism and ordering, the drift chart's runs, the view against the engine,
+  the empty and sparse states, and render tests for the page and the panel.
+
+**Decisions taken**
+- **Bands stay 930 / 850 / 700** (product owner, 2026-09-23). The brief proposed 995/950/900;
+  with those, an EA trading to its backtest reads Watch and the demo has no Fine star.
+- **Correlation drops Stage 2's union grid.** Zero-filling a day one EA sat out makes two EAs
+  that trade the same calendar look related. The demo EAs trade every day, so their numbers are
+  unchanged (0.836 / −0.237 / −0.242, 65 shared days).
+- **The band keeps the EA's own days.** Drawn i.i.d., Gold Scalper's 13.9R drawdown sat outside
+  a 7.4R p95 — not because it failed, but because five same-bias scalps a day are one bet five
+  times. ρ from the live history fixes the shape; μ and σ stay the backtest's. Grid Recovery's
+  trades are close to independent (ρ 0.08), so its band stays narrow and it falls outside it.
+- **The demo backtests now carry dispersions** — 0.80 / 0.90 / 0.60R, about each EA's own live
+  per-trade SD before the drift. Only `DEMO_EAS` changed; not one trade moved. With them,
+  **London Breakout reads Fine (966.7‰), not Standard**: inside its band, its drawdown component
+  is 1. That is the honest result, so the demo test now asserts two Fine and one Degraded, and
+  the stories §11 asks for — 1001 ↔ 1002 same bet, 1003 drifting — are asserted as before.
+- **The sky is laid out, never simulated.** 300 ticks, a fixed seed, nodes sorted by magic,
+  then shrink-to-fit (never stretch, so distances stay proportional to 1 − correlation). The
+  same data draws the same sky, byte for byte.
+- **A negative correlation draws no thread** — opacity is the correlation — and no gold in the
+  matrix. The layout still pushes those stars apart.
+- **Stars are real buttons over a decorative SVG.** Tab walks them, Enter or a tap opens, the
+  name carries every tooltip figure; the SVG is `aria-hidden` with a figcaption in words. Labels
+  are HTML so they stay 11px on a phone.
+- **The drift chart's band is each window's own SE**, so "under the band" at a point means the
+  alert would have fired there, and the line is tarnished (slate) exactly there.
+- **The panel sits beside the sky at ≥ 1280px, a bottom sheet below it**, like the Day Assay.
+
+**Lighthouse** (Lighthouse 13.5, mobile, production build, `next start`, headless Chromium)
+
+| | Performance | Accessibility | Best practices | SEO |
+|---|---|---|---|---|
+| `/constellation` mobile | **97** | **100** | **100** | **100** |
+| `/demo` mobile | **96–98** | **100** | **100** | **100** |
+
+`/constellation` mobile: FCP 0.9 s · LCP 2.5–2.6 s · TBT 40–70 ms · CLS 0.
+
+**Verified in a real browser** (puppeteer-core on Chromium): Enter on a star opens its panel and
+writes `?ea=`; Tab moves to the next star; Esc closes, clears the URL and returns focus to the
+star; a tap on a 375px touch viewport opens the sheet with the heading focused and the page
+locked; no horizontal scroll at 375px; no console errors; the fade-in ends by 1.1 s; under
+`prefers-reduced-motion` the page has no animations at all; CLS 0. Hover tooltips could not be
+exercised — headless Chromium reports `(hover: none)` — they share the Vault's `peer-hover`
+pattern and show on keyboard focus (verified).
+
+**Not built, on purpose**
+No Settings screen for entering a backtest (Stage 8 brings real accounts), no slippage, no
+Wrapped. Noted in `ROADMAP.md`.
+
+**`pnpm engine:report` — section 06**
+```
+06 — CONSTELLATION · EA FINENESS
+────────────────────────────────────────────────────────────────────────
+    EA                                  trades   exp      PF    DD     recent-20  fineness  label
+    1001 · Gold Scalper                   294   +0.2R   1.70  −13.9R     +0.7R     942.9‰   Fine
+       components                       stability 100.0% · drawdown 100.0% · consistency 71.4% · execution 100.0%
+       drift                            recent +0.70R · baseline +0.28R · SE 0.136R · threshold +0.01R · 3.11 SE above
+       drawdown band                    p05 5.9R · p50 11.3R · p95 21.9R · live 13.9R (70.2%) · inside · ρ 0.76 · 2000 paths
+    1002 · London Breakout                121   +0.3R   2.13   −6.7R     +0.7R     966.7‰   Fine
+       components                       stability 100.0% · drawdown 100.0% · consistency 83.3% · execution 100.0%
+       drift                            recent +0.69R · baseline +0.50R · SE 0.251R · threshold 0.00R · 0.78 SE above
+       drawdown band                    p05 2.4R · p50 4.6R · p95 9.1R · live 6.7R (82.5%) · inside · ρ 0.90 · 2000 paths
+    1003 · Grid Recovery                  199   +0.1R   1.32  −18.1R     −0.4R     425.9‰   Degraded · drift
+       components                       stability 25.6% · drawdown 23.4% · consistency 77.8% · execution 97.9%
+       drift                            recent −0.38R · baseline +0.30R · SE 0.227R · threshold −0.15R · 2.98 SE below
+       drawdown band                    p05 1.6R · p50 2.5R · p95 4.3R · live 18.1R (100.0%) · outside · ρ 0.08 · 2000 paths
+    1001 ↔ 1002                         0.836 · 65 shared days · same bet
+    1001 ↔ 1003                         −0.237 · 65 shared days
+    1002 ↔ 1003                         −0.242 · 65 shared days
+    Summary                             3 EAs · average 778.5‰ · 1 same-bet pair · drifting 1003
+```
