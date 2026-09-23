@@ -301,7 +301,7 @@ with its geometry and timing in `components/viz/instrument.ts`:
 - **Six sub-dials** (PillarRings, below) fixed at 12, 2, 4, 6, 8 and 10 o'clock, in engine pillar
   order (Risk at 12, clockwise), each wired to the dial's centre by a thin gold hairline arm.
 - **The reserved outer ring.** A thin, dark band with faint hairline edges round the whole
-  instrument, **deliberately empty**. It is where Stage 4's 24-hour trade clock (the GoldClock,
+  instrument, **deliberately empty**. It is where the 24-hour trade clock (the GoldClock,
   item 3) lives. Nothing else may be drawn in it; the code carries a comment saying so.
 - **Hover or focus** a sub-dial: its arm brightens, its ring lifts, and its deduction summary
   appears beside it. Nothing else moves.
@@ -487,14 +487,18 @@ app/
 components/
   viz/                        AssayDial, GoldClock, PurityLine, Refinery,
                               Hallmark, VaultCalendar, Constellation, AssayCertificate
-                              (+ pure geometry: dial.ts, instrument.ts, rings.ts)
+                              (+ pure geometry: dial.ts, instrument.ts, rings.ts, hallmark.ts)
   assay/                      the Assay page: AssayInstrument (dial + PillarRings sub-dials),
                               scenes, Explain drawer
+  ledger/                     the Ledger screen (client: filters, table, keyboard, export)
+  dossier/                    the Trade Dossier: view builder, screen, price chart
   ui/                         primitives (Card, Label, Stat, Button, Table)
 lib/
   engine/                     trades, sessions, news, karat, gap, proof, fineness, correlation,
                               confidence, baselines, edgemap, similar, counterfactual, replay, prop
-  demo/                       deterministic generator
+  demo/                       deterministic generator (+ memoised Assay, Ledger rows, candles)
+  ledger/                     rows, query (filter/sort/URL), summary, CSV, keyboard, pack —
+                              browser-safe except rows.ts
   supabase/                   clients + typed queries
 connector/                    KavrixConnector.mq5 + README
 ```
@@ -525,12 +529,16 @@ connector/                    KavrixConnector.mq5 + README
     behind it and its §6.6 confidence. Calm and factual — it explains, it does not reassure.
 - [x] 3.5 — The Assay instrument: dial craft, the six sub-dials wired to it, the reserved outer
   ring, four scroll-triggered scenes, and a scope label on every pillar value and finding
-- [ ] 4 — Gold Clock + Purity Line + Vault
-  - **The Gold Clock goes in the instrument's reserved outer ring** (§8), not beside it.
+- [x] 4 — Ledger + Hallmarks + Trade Dossier *(swapped with the old Stage 4 at the product
+  owner's call, 2026-09-23)*
+  - `/ledger`: every closed trade, manual and EA, filters / search / sort / page in the URL, a
+    "current filter" summary strip, CSV export of exactly the rows shown, a terminal keyboard.
+  - `/trade/[id]`: Hallmark and figures, price chart, what each impurity cost, Similar Trades,
+    previous / next inside the Ledger's filter.
+- [ ] 5 — Purity Line + Vault
   - **What-if toggle on the Purity Line** (§6.10), carrying the "Counterfactual, not a promise"
     label wherever it is drawn.
   - **Discipline Replay opens from a day in the Vault** (§6.11).
-- [ ] 5 — Ledger + Hallmarks + Trade Dossier
 - [ ] 6 — Constellation (EA Health, Fineness, correlation)
   - **Monte Carlo drawdown band from the backtest** for EA Health (§7).
 - [ ] 7 — Wrapped + Assay Certificate export
@@ -545,6 +553,9 @@ connector/                    KavrixConnector.mq5 + README
   - **Methodology page**, linked from the footer: how Karat is computed, what the confidence
     labels mean, and what the What-if does and does not claim.
 - [ ] 11 — Polish, README with architecture diagram, deploy
+  - **The Gold Clock** (§8.3), deferred here from the old Stage 4 as part of the final design
+    pass. It goes in the instrument's **reserved outer ring** (§8), not beside it; until then
+    the ring stays empty and untouched.
   - Engineering metrics (test count, engine speed, Lighthouse) belong in the **README only**,
     never in the app. They are a portfolio fact about the build, not a product claim to a
     trader.
@@ -1275,3 +1286,134 @@ the stacked phone layout opens the explanation under the grid.
    rule, and why. The page says it in one sentence, `GAP_VS_WHAT_IF`, shared by the Gap drawer,
    the What-if drawer and the Gap card, and the two engine comments that repeated the old claim
    (`lib/engine/counterfactual.ts`, comments only — no code) now agree with it.
+
+### Stage 4 — The Ledger, Hallmarks and the Trade Dossier ✅ (2026-09-23)
+
+A content stage: **no engine change**, no redesign. `lib/engine/` is untouched — every
+figure on the two new surfaces is an `EnrichedTrade` field or the output of an engine
+function the Assay already uses (`attributeCost`, `findSimilarTrades`, `entryVolatilities`,
+`newsBucket`, `sessionsAt`). The Ledger reuses `Card`, `Label`, `SectionHeading`, `Badge`, the
+table idiom and the editorial rhythm (`02 — The Ledger`, Dossier sections `01`–`03`).
+
+**Stages reordered at the product owner's call.** This stage was Stage 5; the old Stage 4 is now
+Stage 5 (Purity Line + Vault), and the **Gold Clock moved to Stage 11**, the final design pass.
+The Assay's reserved outer ring is untouched and still empty. The nav's stage hints follow.
+
+**Routes**
+- `app/(app)/ledger/page.tsx` — `force-static`. Rows are built at build time and shipped to one
+  client component. The prerendered HTML is the default view (all trades, newest first, page
+  one) — the real table, readable without JavaScript.
+- `app/(app)/trade/[id]/page.tsx` — rendered on request, because the Ledger's filter travels in
+  the query string and decides previous / next. Everything it reads is memoised per process
+  (`lib/demo/dossier.ts`), so a request is one Similar Trades search and one fold of M1 bars.
+  Unknown ids 404. Both routes read the demo until Stage 8 and carry the "Demo data" badge.
+
+**What exists now**
+- `lib/ledger/` — `types.ts` (the `LedgerRow` shape + `rowHallmark`, browser-safe), `rows.ts`
+  (server: `EnrichedTrade` → row, deal tickets joined from the raw positions), `query.ts`
+  (URL parse/serialize, filter, sort, pages, `adjacentRows`, `dossierHref`), `summary.ts`,
+  `csv.ts`, `keyboard.ts` (the key map as a pure function), `pack.ts` (columnar wire format),
+  `labels.ts` (impurity and session words — `explain.ts` now imports them from here).
+- `components/viz/hallmark.ts` + `Hallmark.tsx` + `HallmarkLegend.tsx`.
+- `components/ledger/LedgerScreen.tsx`, `useLocationSearch.ts`.
+- `components/dossier/dossier.ts` (server view builder, strings only, like `explain.ts`),
+  `DossierScreen.tsx`, `PriceChart.tsx`.
+- `lib/demo/assay.ts` now memoises the generated dataset too (`getDemoDataset`);
+  `lib/demo/ledger.ts`, `lib/demo/dossier.ts`, `lib/demo/candles.ts` (M1 → candles).
+- `lib/format.ts` gained `formatDuration`, `formatLots`, `formatPrice`.
+- `lightweight-charts` 5 added (Apache-2.0; its attribution logo is kept on the chart).
+- Nav: `PrimaryNav`/`AppShell` take `current`; the Ledger is a real link on every page and is
+  lit on the Ledger and the Dossier. Vault, Constellation and Wrapped stay dimmed.
+- **114 new Vitest cases, 524 in total, all passing**: Hallmark geometry, determinism and
+  distinguishability; filter, search and sort; URL round trip; summary against the engine; CSV
+  contents against the filter; the key map; the row packing; candles; the Dossier builder; and
+  render tests for `/ledger` and `/trade/[id]`.
+
+**The Hallmark** (§8.6) — one ring per dimension, outside in, so no two dimensions share a mark:
+bezel = SL compliance (solid / broken = widened / dotted = none) · outer arcs = session (Asia at
+10 o'clock slate, London at 2 gold, New York at 6 bronze, lit when the entry fell in it) · a pip
+at 12 = news (filled in the ±15 min window, hollow at 15–60 min, absent when clear — the engine's
+§6.8 bucket) · inner arc = risk % (clockwise from 12, a tick at the limit, brighter past it, full
+at 3×) · hand = holding time (log scale, 1 min at 12, 1 day at 11) · centre disc = R (radius
+grows to 3R; jade or oxblood, §9). Strokes and fills only, ≤ 12 elements, coordinates rounded
+to 0.01 so the same trade draws the same bytes. **All 834 demo trades draw 834 distinct glyphs.**
+Every glyph carries `role="img"`, a `<title>` and an `aria-label` in words.
+
+**Decisions taken**
+- **Paginate, fifty a page, rather than virtualise.** Pages are URL state like everything else,
+  the prerendered page is real HTML, and the keyboard crosses page boundaries by itself (↓ on
+  row 50 turns the page; Home / End jump to the first / last row of the whole filter).
+- **URL state without `useSearchParams`.** `useSyncExternalStore` over `location.search`, with
+  `''` as the server snapshot: the static page renders the default view and a linked view
+  takes over on hydration, with no Suspense fallback and no hydration mismatch. Writes use
+  `history.replaceState` — a filter change is not a navigation; Back leaves the Ledger.
+- **The default view is 90-day, all sources, newest first.** "30-day" is the Karat's window
+  (the 30-day manual filter holds exactly the 77 trades the Karat scores — asserted).
+- **EA trades are listed, and their engine flags shown**, because the engine measured them —
+  but the Dossier says plainly that EA trades are outside the Karat Score and the Gap, and bills
+  none of their reasons.
+- **Selection is focus.** ↑/↓ moves real focus to the row's link (so Enter is the link's own,
+  and a screen reader reads the row's name), marks the row with a gold hairline, scrolls it into
+  view, and a polite live region says "Row 3 of 834 selected". Shortcuts never fire inside a
+  field; in the search only Enter, Esc and ↓ mean anything. `?` opens a native `<dialog>`.
+- **Search is a filter.** It matches position id, either deal ticket or the trade id, exact or
+  partial (`T-700766`, `#700766`, `0766`). When exactly one trade matches, Enter opens it. When
+  the other filters hide a match, the hint says so and offers to clear them.
+- **The summary strip is counts and sums**, `summarizeRows`, over rows the engine measured —
+  no new metric. Win rate counts a scratch trade as neither.
+- **CSV is for a spreadsheet**: RFC 4180 quoting, CRLF, UTC ISO times, fixed-decimal plain
+  numbers with an ASCII hyphen, `;` inside the sessions and impurities cells, every filtered
+  row across all pages, `kavrix-ledger-<30d|90d>-<YYYYMMDDTHHmmssZ>.csv` stamped at export.
+- **Rows travel packed.** 834 row objects were 418 KB of JSON escaped into the page, and the
+  first mobile Lighthouse run was 87 (TBT 460 ms). Columns, with enums as indexes and sets as
+  bitmasks, are 104 KB and round-trip losslessly (asserted); with `content-visibility: auto` on
+  the table card the page went from 659 KB to 289 KB and mobile to 95–98.
+- **One bill, one reason.** The Dossier calls the Gap's own `attributeCost`, so exactly one of
+  a trade's reasons is "Billed to …" — for the same money the Gap counts — and every other
+  reason says why not (priority order, Stops has no line, winners cost nothing, EA trades are
+  outside). An overtrading day is shown as its own card, marked as a day, not a trade.
+- **Similar Trades is the engine's call**, `findSimilarTrades` for this trade with the account's
+  entry volatilities — for the costliest impurity it returns exactly the neighbours and headline
+  `runEngine` computed (asserted). The Dossier checks the no-hindsight rule rather than quoting
+  it: the "All 12 closed before this trade opened" line is only printed when it is true.
+- **Candles come from the demo's own M1 path**, folded to the smallest of M1/M5/M15/M30/H1 that
+  fits the trade plus context (its own length either side, 45 min – 6 h) in ≤ 180 candles,
+  UTC-aligned, weekend minutes skipped. Session bands and news columns are full-height histogram
+  series behind the candles; release labels sit on the time axis in an HTML row that follows
+  `timeToCoordinate`. Colours are read from the §9 tokens at runtime. The library is imported
+  on mount, the box has a fixed height (CLS 0), and a figcaption gives the chart in words.
+- **Previous / next walk the Ledger's filter and sort**; "back" returns to the page the trade is
+  on. A trade outside the filter it was opened from falls back to the whole Ledger, and says so.
+
+**One test-infrastructure change.** The engine's 1-second benchmark (`performance.test.ts`)
+failed whenever the whole suite ran in parallel on this 4-CPU container — **on the Stage 3.5
+commit too** (1,035–1,194 ms), while passing alone. It was timing the container. `vitest.config.ts`
+now runs it as its own project after every other file (`sequence.groupOrder`). The threshold and
+the test are untouched.
+
+**Lighthouse** (Lighthouse 13.5, production build, `next start`, headless Chromium)
+
+| | Performance | Accessibility | Best practices | SEO |
+|---|---|---|---|---|
+| `/ledger` mobile | **98** (two runs) | **100** | **100** | **100** |
+| `/ledger` desktop | **100** | **100** | **100** | **100** |
+| `/trade/T-700766` mobile | **97** | **100** | **100** | **100** |
+| `/demo` mobile | **96** | **100** | **100** | **100** |
+
+`/ledger` mobile: FCP 1.0 s · LCP 2.1 s · TBT 80–90 ms · CLS 0.
+
+**Verified in a real browser** (puppeteer-core on Chromium): ↓/↑/Home/End move the selection,
+End turns to page 17 and Home back to 1; `/` focuses the search, typing narrows it to one match
+and offers Enter; Esc clears, Esc again returns focus to the selected row; filters and sort
+write the URL and survive a reload; Enter opens the Dossier with the filter carried; the CSV
+downloads with the filtered rows; `?` opens the shortcuts and Esc closes them; the chart draws
+with its news ticks; no horizontal scroll at 375 px on either page; no console errors.
+
+**Not built, on purpose**
+No Vault, Purity Line or Gold Clock (Stages 5 and 11). No AI copy. No bars for real accounts —
+the connector sends deals, not prices, so the Dossier chart is demo-only until a bar source
+exists (noted in `ROADMAP.md`).
+
+**Left standing, for the product owner to call**
+`/styleguide` still exists. The Ledger now gives `Table`-style markup a real home, so it can go —
+but deleting it is outside this stage's brief.

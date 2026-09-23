@@ -16,12 +16,13 @@
 import type { AssayResult } from '@/lib/engine';
 import type { ConfidenceResult } from '@/lib/engine/confidence';
 import { CONFIDENCE_LABELS } from '@/lib/engine/confidence';
-import type { EnrichedTrade, ImpurityKind } from '@/lib/engine/enrich';
+import type { EnrichedTrade } from '@/lib/engine/enrich';
 import type { Finding } from '@/lib/engine/findings';
 import type { GapLine, KaratGapResult } from '@/lib/engine/gap';
 import type { Deduction, PillarKey, PillarResult } from '@/lib/engine/karat';
 import type { EngineSettings } from '@/lib/engine/settings';
 import { formatKarat, formatMoney, formatPct, formatR } from '@/lib/format';
+import { IMPURITY_LABELS } from '@/lib/ledger/labels';
 import type {
   ExplainConfidence,
   ExplainEntry,
@@ -102,15 +103,6 @@ function formatDay(iso: string): string {
   return iso.slice(0, 10);
 }
 
-const IMPURITY_LABELS: Record<ImpurityKind, string> = {
-  revenge: 'Revenge',
-  news: 'News window',
-  rollover: 'Rollover',
-  oversized: 'Oversized',
-  noStop: 'No stop',
-  stopWidened: 'Stop widened',
-  exitOverrun: 'Exit overrun',
-};
 
 function toneForR(value: number): ExplainTone {
   if (value > 0) return 'profit';
@@ -190,7 +182,7 @@ const CONFIDENCE_MEANING: Record<string, string> = {
   weak: 'Not enough evidence to call. The number is reported, not relied on.',
 };
 
-function explainConfidence(confidence: ConfidenceResult | null): ExplainConfidence | null {
+export function explainConfidence(confidence: ConfidenceResult | null): ExplainConfidence | null {
   if (confidence === null || confidence.n === 0) return null;
   return {
     label: CONFIDENCE_LABELS[confidence.label],

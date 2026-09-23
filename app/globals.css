@@ -484,3 +484,48 @@
     animation-play-state: paused;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Stage 4 — the Ledger
+
+   The selected row is marked by a gold hairline round the whole row. Drawn as
+   inset shadows on the cells rather than on the row, because a collapsed
+   table row does not reliably paint its own box.
+   --------------------------------------------------------------------------- */
+
+.ledger-row {
+  scroll-margin-top: 88px;
+  scroll-margin-bottom: 24px;
+}
+
+.ledger-row[data-selected] {
+  background-color: var(--surface-2);
+}
+
+.ledger-row[data-selected] > td {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--gold) 70%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--gold) 70%, transparent);
+}
+
+.ledger-row[data-selected] > td:first-child {
+  box-shadow:
+    inset 2px 0 0 var(--gold),
+    inset 0 1px 0 color-mix(in srgb, var(--gold) 70%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--gold) 70%, transparent);
+}
+
+.ledger-row[data-selected] > td:last-child {
+  box-shadow:
+    inset -1px 0 0 color-mix(in srgb, var(--gold) 70%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--gold) 70%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--gold) 70%, transparent);
+}
+
+/* Fifty rows of Hallmarks is most of the Ledger's paint, and on a phone the
+   table starts below the fold: let the browser skip it until it is near.
+   The remembered size keeps the scrollbar honest once it has been seen. */
+.ledger-table {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 2900px;
+}

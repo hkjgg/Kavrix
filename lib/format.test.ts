@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   EM_DASH,
   MINUS,
+  formatDuration,
   formatKarat,
+  formatLots,
   formatMoney,
   formatPct,
+  formatPrice,
   formatR,
 } from './format';
 
@@ -133,5 +136,39 @@ describe('formatKarat', () => {
 
   it('falls back to an em dash for non-finite input', () => {
     expect(formatKarat(Number.NaN)).toBe(EM_DASH);
+  });
+});
+
+describe('formatDuration', () => {
+  it('reads seconds under a minute', () => {
+    expect(formatDuration(0)).toBe('0s');
+    expect(formatDuration(42)).toBe('42s');
+  });
+
+  it('shows two units, largest first, truncated rather than rounded', () => {
+    expect(formatDuration(60)).toBe('1m');
+    expect(formatDuration(3_599)).toBe('59m');
+    expect(formatDuration(5_040)).toBe('1h 24m');
+    expect(formatDuration(3_600)).toBe('1h');
+    expect(formatDuration(183_600)).toBe('2d 3h');
+    expect(formatDuration(86_400 + 59)).toBe('1d');
+  });
+
+  it('falls back to an em dash for a negative or non-finite value', () => {
+    expect(formatDuration(-1)).toBe(EM_DASH);
+    expect(formatDuration(Number.NaN)).toBe(EM_DASH);
+  });
+});
+
+describe('formatLots and formatPrice', () => {
+  it('fixes lots at two decimals', () => {
+    expect(formatLots(0.5)).toBe('0.50');
+    expect(formatLots(1.234)).toBe('1.23');
+  });
+
+  it('fixes a price at the symbol precision', () => {
+    expect(formatPrice(2412.3)).toBe('2412.30');
+    expect(formatPrice(1.23456, 5)).toBe('1.23456');
+    expect(formatPrice(Number.NaN)).toBe(EM_DASH);
   });
 });

@@ -11,16 +11,24 @@
  * drifts as the deploy ages is not a demo, it is a bug with a story.
  */
 
+import type { DemoDataset } from './generate';
 import { DEMO_END_MS, generateDemoData } from './generate';
 import type { AssayResult } from '@/lib/engine';
 import { runEngine } from '@/lib/engine';
 
+let cachedData: DemoDataset | null = null;
 let cached: AssayResult | null = null;
+
+/** The generated account — deals, trades, calendar — memoised like the Assay. */
+export function getDemoDataset(): DemoDataset {
+  if (cachedData === null) cachedData = generateDemoData();
+  return cachedData;
+}
 
 export function getDemoAssay(): AssayResult {
   if (cached !== null) return cached;
 
-  const data = generateDemoData();
+  const data = getDemoDataset();
   cached = runEngine(
     {
       account: data.account,

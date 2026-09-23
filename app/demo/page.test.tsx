@@ -146,9 +146,11 @@ describe('/demo', () => {
     }
   });
 
-  it('leaves the surfaces that do not exist yet disabled rather than broken', () => {
+  it('links the Ledger and leaves the surfaces that do not exist yet disabled rather than broken', () => {
     expect(markup).toContain('aria-disabled="true"');
-    expect(markup).not.toContain('href="/ledger"');
+    expect(markup).toMatch(/aria-current="page"[^>]*href="\/demo"/);
+    expect(markup).toContain('href="/ledger"');
+    expect(markup).not.toMatch(/aria-current="page"[^>]*href="\/ledger"/);
     expect(markup).not.toContain('href="/vault"');
   });
 });

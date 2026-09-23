@@ -4,26 +4,35 @@ import { cn } from '@/lib/cn';
 /**
  * The product's five surfaces (CLAUDE.md §4).
  *
- * Only the Assay exists in Stage 3. The rest are shown, not hidden — a reader
- * should be able to see where the product goes — but they are inert: an
- * `aria-disabled` span, never a link that 404s.
+ * The Assay and the Ledger exist (Stages 3 and 4). The rest are shown, not
+ * hidden — a reader should be able to see where the product goes — but they
+ * are inert: an `aria-disabled` span, never a link that 404s.
  */
 
+export type NavKey = 'assay' | 'ledger' | 'vault' | 'constellation' | 'wrapped';
+
 export interface NavItem {
+  key: NavKey;
   label: string;
   href: string | null;
   stage: string;
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
-  { label: 'Assay', href: '/demo', stage: 'Stage 3' },
-  { label: 'Ledger', href: null, stage: 'Stage 5' },
-  { label: 'Vault', href: null, stage: 'Stage 4' },
-  { label: 'Constellation', href: null, stage: 'Stage 6' },
-  { label: 'Wrapped', href: null, stage: 'Stage 7' },
+  { key: 'assay', label: 'Assay', href: '/demo', stage: 'Stage 3' },
+  { key: 'ledger', label: 'Ledger', href: '/ledger', stage: 'Stage 4' },
+  { key: 'vault', label: 'Vault', href: null, stage: 'Stage 5' },
+  { key: 'constellation', label: 'Constellation', href: null, stage: 'Stage 6' },
+  { key: 'wrapped', label: 'Wrapped', href: null, stage: 'Stage 7' },
 ];
 
-export function PrimaryNav({ className }: { className?: string }) {
+export interface PrimaryNavProps {
+  /** The surface this page belongs to. A Dossier belongs to the Ledger. */
+  current: NavKey;
+  className?: string;
+}
+
+export function PrimaryNav({ current, className }: PrimaryNavProps) {
   return (
     <nav aria-label="Primary" className={className}>
       <ul className="flex items-center gap-1">
@@ -45,14 +54,18 @@ export function PrimaryNav({ className }: { className?: string }) {
             );
           }
 
+          const active = item.key === current;
           return (
             <li key={item.label}>
               <Link
                 href={item.href}
-                aria-current="page"
+                aria-current={active ? 'page' : undefined}
                 className={cn(
                   base,
-                  'bg-surface-2 text-gold transition-colors hover:bg-surface-2',
+                  'transition-colors',
+                  active
+                    ? 'bg-surface-2 text-gold hover:bg-surface-2'
+                    : 'text-text-2 hover:bg-surface-2 hover:text-text',
                 )}
               >
                 {item.label}
