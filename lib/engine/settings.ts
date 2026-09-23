@@ -81,6 +81,14 @@ export interface EngineSettings {
   eaConsistencyBlockTrades: number;
   /** Daily P&L correlation at or above this flags two EAs as the same bet. */
   eaSameBetCorrelation: number;
+  /** Days both EAs must have traded before their correlation is reported at all. */
+  eaMinOverlapDays: number;
+  /** Simulated paths in the Monte Carlo drawdown band. */
+  eaDrawdownPaths: number;
+  /** Floor the path count tapers to for an EA with a very long history. */
+  eaDrawdownMinPaths: number;
+  /** Simulated trades one band may draw in total (`paths × trades`). */
+  eaDrawdownSampleBudget: number;
 
   /* — Confidence (§6.6) — */
   /** Resamples in the bootstrap behind every confidence interval. */
@@ -157,6 +165,10 @@ export const DEFAULT_SETTINGS: EngineSettings = {
   eaDriftStandardErrors: 2,
   eaConsistencyBlockTrades: 20,
   eaSameBetCorrelation: 0.6,
+  eaMinOverlapDays: 10,
+  eaDrawdownPaths: 2_000,
+  eaDrawdownMinPaths: 200,
+  eaDrawdownSampleBudget: 1_000_000,
 
   bootstrapResamples: 2_000,
   bootstrapMinResamples: 200,

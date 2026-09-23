@@ -197,6 +197,8 @@ function main(): void {
   );
 
   // 06 — constellation
+  const formatSigned = (value: number, digits: number): string =>
+    value < 0 ? `\u2212${Math.abs(value).toFixed(digits)}` : value.toFixed(digits);
   lines.push(heading('06', 'Constellation · EA fineness'));
   lines.push(
     line(
@@ -225,15 +227,39 @@ function main(): void {
         `stability ${formatPct(ea.components.expectancyStability * 100)} · drawdown ${formatPct(ea.components.drawdownVsBaseline * 100)} · consistency ${formatPct(ea.components.consistency * 100)} · execution ${formatPct(ea.components.executionQuality * 100)}`,
       ),
     );
+    lines.push(
+      line(
+        '     drift',
+        `recent ${formatR(ea.drift.recentExpectancyR, { digits: 2 })} · baseline ${formatR(ea.drift.baselineExpectancyR, { digits: 2 })} · SE ${ea.drift.standardErrorR.toFixed(3)}R · threshold ${formatR(ea.drift.thresholdR, { digits: 2 })} · ${Math.abs(ea.drift.standardErrors).toFixed(2)} SE ${ea.drift.standardErrors > 0 ? 'below' : 'above'}`,
+      ),
+    );
+    const band = ea.drawdownBand;
+    lines.push(
+      line(
+        '     drawdown band',
+        band === null
+          ? `none · measured against the ${ea.drawdownBasis}`
+          : `p05 ${band.p05R.toFixed(1)}R · p50 ${band.p50R.toFixed(1)}R · p95 ${band.p95R.toFixed(1)}R · live ${band.liveDrawdownR.toFixed(1)}R (${formatPct(band.livePercentile * 100)}) · ${band.inside ? 'inside' : 'outside'} · ρ ${band.intradayCorrelation.toFixed(2)} · ${band.paths} paths`,
+      ),
+    );
   }
   for (const pair of constellation.correlations) {
     lines.push(
       line(
         `  ${pair.a} ↔ ${pair.b}`,
-        `${pair.correlation.toFixed(3)}${pair.sameBet ? '  · same bet' : ''}`,
+        pair.correlation === null
+          ? `not enough overlap · ${pair.overlapDays} shared days`
+          : `${formatSigned(pair.correlation, 3)} · ${pair.overlapDays} shared days${pair.sameBet ? ' · same bet' : ''}`,
       ),
     );
   }
+  const { summary } = constellation;
+  lines.push(
+    line(
+      '  Summary',
+      `${summary.eaCount} EAs · average ${summary.averageFineness === null ? '—' : `${summary.averageFineness.toFixed(1)}‰`} · ${summary.sameBetPairs} same-bet pair${summary.sameBetPairs === 1 ? '' : 's'} · drifting ${summary.driftingMagics.join(', ') || 'none'}`,
+    ),
+  );
 
   // 07 — the edge map
   lines.push(heading('07', 'Edge map · corrected across every cell'));

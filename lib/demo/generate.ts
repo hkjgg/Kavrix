@@ -142,9 +142,9 @@ const DEAL_TICKET_BASE = 900_000;
 
 /** The three demo Expert Advisors (CLAUDE.md §11). */
 export const DEMO_EAS: readonly Ea[] = [
-  { magic: 1001, name: 'Gold Scalper', baselineExpectancyR: 0.28 },
-  { magic: 1002, name: 'London Breakout', baselineExpectancyR: 0.5 },
-  { magic: 1003, name: 'Grid Recovery', baselineExpectancyR: 0.3 },
+  { magic: 1001, name: 'Gold Scalper', baselineExpectancyR: 0.28, baselineStdDevR: 0.8 },
+  { magic: 1002, name: 'London Breakout', baselineExpectancyR: 0.5, baselineStdDevR: 0.9 },
+  { magic: 1003, name: 'Grid Recovery', baselineExpectancyR: 0.3, baselineStdDevR: 0.6 },
 ];
 
 /* -------------------------------------------------------------------------
