@@ -487,16 +487,21 @@ app/
 components/
   viz/                        AssayDial, GoldClock, PurityLine, Refinery,
                               Hallmark, VaultCalendar, Constellation, AssayCertificate
-                              (+ pure geometry: dial.ts, instrument.ts, rings.ts, hallmark.ts)
+                              (+ pure geometry: dial.ts, instrument.ts, rings.ts, hallmark.ts,
+                              purity.ts)
   assay/                      the Assay page: AssayInstrument (dial + PillarRings sub-dials),
-                              scenes, Explain drawer
+                              scenes (incl. the Purity Line + What-if), Explain drawer
+  vault/                      the Vault: view builder (shelves, ingots, keyboard), screen,
+                              Discipline Replay
   ledger/                     the Ledger screen (client: filters, table, keyboard, export)
   dossier/                    the Trade Dossier: view builder, screen, price chart
   ui/                         primitives (Card, Label, Stat, Button, Table)
 lib/
   engine/                     trades, sessions, news, karat, gap, proof, fineness, correlation,
                               confidence, baselines, edgemap, similar, counterfactual, replay, prop
-  demo/                       deterministic generator (+ memoised Assay, Ledger rows, candles)
+  demo/                       deterministic generator (+ memoised Assay, Ledger rows, candles,
+                              Vault)
+  dates.ts                    UTC calendar words for day keys, without Intl — browser-safe
   ledger/                     rows, query (filter/sort/URL), summary, CSV, keyboard, pack —
                               browser-safe except rows.ts
   supabase/                   clients + typed queries
@@ -535,10 +540,14 @@ connector/                    KavrixConnector.mq5 + README
     "current filter" summary strip, CSV export of exactly the rows shown, a terminal keyboard.
   - `/trade/[id]`: Hallmark and figures, price chart, what each impurity cost, Similar Trades,
     previous / next inside the Ledger's filter.
-- [ ] 5 — Purity Line + Vault
+- [x] 5 — Purity Line + Vault
   - **What-if toggle on the Purity Line** (§6.10), carrying the "Counterfactual, not a promise"
     label wherever it is drawn.
   - **Discipline Replay opens from a day in the Vault** (§6.11).
+  - `/vault`: the 90-day history as month shelves of ingots (fill = day P&L, engraving = day
+    Karat), hover detail, a month summary per shelf, one-tab-stop keyboard, `?day=` in the URL.
+  - `05 — The Purity Line` on the Assay: equity lit by the rolling Karat, impurity stamps to
+    the Dossier, What-if with the engine's six scenarios.
 - [ ] 6 — Constellation (EA Health, Fineness, correlation)
   - **Monte Carlo drawdown band from the backtest** for EA Health (§7).
 - [ ] 7 — Wrapped + Assay Certificate export
@@ -1417,3 +1426,123 @@ exists (noted in `ROADMAP.md`).
 **Left standing, for the product owner to call**
 `/styleguide` still exists. The Ledger now gives `Table`-style markup a real home, so it can go —
 but deleting it is outside this stage's brief.
+
+### Stage 5 — The Vault, the Discipline Replay and the Purity Line ✅ (2026-09-23)
+
+A surfaces stage: **no engine change** — `git diff` on `lib/engine/` is empty. Every figure on
+the three new surfaces is an `AssayResult` field or the output of an engine function the
+engine already exports (`computeReplay`, `worstTiltEpisode`, `GAP_PILLAR_LABELS`). The Assay's
+four scenes and the Ledger are untouched apart from the nav link; the new work reuses the
+scene system, `SectionHeading`, `Label`, the `enter-*` choreography and the engraved pills.
+
+**Routes**
+- `app/(app)/vault/page.tsx` — `force-static`. The shelves are real HTML before any script
+  runs; the open replay is read from `?day=YYYY-MM-DD` as the page hydrates (the Ledger's
+  `useLocationSearch`, reused), and written with `replaceState`, so a replay is linkable and
+  Back still leaves the Vault.
+- `/demo` gains `05 — The Purity Line`, below Your Proof.
+- Nav: **Vault is a live link everywhere**, lit on `/vault`. Constellation and Wrapped stay
+  dimmed.
+
+**What exists now**
+- `components/vault/vault.ts` — the view builder and every pure helper the tests aim at:
+  `ingotFill`, `ingotBody`/`ingotBand` (geometry), `karatTone`, `buildShelves`,
+  `monthSummary`, `moveDate` (the key map), `karatX`/`replaySegment` (the running-Karat
+  lane), `tiltSpans`, `buildReplayDayView`, `buildVaultView`. Type-only engine imports.
+- `components/vault/VaultScreen.tsx` (client) — shelves, day cells, hover detail, keyboard,
+  URL state, the replay panel. `components/vault/Replay.tsx` — the Discipline Replay.
+- `components/viz/purity.ts` — scales, axis ticks, decimation, paths, and `purityColor`
+  (Karat → the gold family). `components/assay/purity.ts` — `buildPurityView`,
+  `scenarioEquity`, `purityLayers`. `PurityScene.tsx` (server) + `PurityLine.tsx` (client).
+- `lib/demo/vault.ts` — `getDemoReplay()` and `getDemoVault()`, memoised.
+- `lib/dates.ts` — English calendar words for UTC day keys, without `Intl`, so the server and
+  every browser print the same date.
+- `app/globals.css` — `enter-drop` (revealed top to bottom, in the scene system), `wipe-in`
+  (a What-if series drawn on toggle), `vault-shelf` (the ledge).
+- **60 new Vitest cases, 584 in total**: ingot fill and colour mapping, band geometry, shelves
+  across month boundaries, month summary, the key map, replay order and running Karat against
+  a hand-worked fixture (24.0 → 22.8 → 23.2K), the lane's continuity, tilt-span placement,
+  the purity colour ramp, scales and decimation, the "every impurity" curve against the
+  engine's own `counterfactualEquity`, every scenario ending on its own `endEquity`, the
+  What-if toggle switching series, and render tests for `/vault`, a replay day, its empty
+  state, and the Purity Line on `/demo`.
+
+**Decisions taken**
+- **The Vault replays the whole history.** `runEngine` replays only the scored window by
+  default and its own comment says the Vault asks for other days on demand — so the demo
+  layer calls the engine's `computeReplay` over every day, with the Assay's trades and
+  settings. Nothing is recomputed: the Vault's day Karat and the Replay's agree on all 65
+  days (asserted).
+- **An ingot is the whole account; its engraving is the trader.** The fill is
+  `stats.calendarDays.netMoney`, EAs included, exactly as the engine's comment says the Vault
+  shows it; the engraving is the day Karat, manual only. The page subtitle, the hover detail
+  ("14 · 5 manual") and the Replay's footnote each say which is which.
+- **Fill is linear in money against the largest day**, from a midline: jade up, oxblood down,
+  a floor of 8% so a day that moved is never drawn empty. The worst day of the history fills
+  its half of the bar. A square-root scale would have flattered the small days; honest won.
+- **The engraving is struck by tier, in the gold family**: gold-light at 22K and up, gold at
+  18K, then text-2 and text-3. A tier is not a P&L, and a dull engraving still passes AA.
+- **Seven columns, Monday first, weekends included.** Weekends are empty slots — the calendar
+  is a calendar — and the columns line up on every shelf. Slots outside the history
+  (1–21 June) are not drawn at all rather than shown as quiet days.
+- **Every day of the history is a button**, quiet days included, so the arrows move by day
+  and by week without skipping, and a quiet day opens the Replay's empty state. One tab stop
+  (roving `tabindex`), Home/End to the ends, Enter opens, Esc closes from anywhere and returns
+  focus to the day.
+- **The replay does not steal focus when it is already on screen.** Beside the calendar (≥
+  1280 px) focus stays on the day so the arrows keep walking the week; below the fold (a
+  phone) the panel scrolls into view and its heading takes focus. A polite live region
+  announces each opened day either way.
+- **The running Karat is a lane, not a column of figures.** Each row draws its own stretch of
+  the line — in at the top at the Karat before, down to the Karat after by the middle, out at
+  the bottom — so rows of any height join into one continuous line (asserted), and a
+  collapse reads as a fall across the lane. 24K at the right edge, faint guides at 14/18/22K.
+- **A tilt span brackets from the first impurity to the last**, clean trades inside it, with
+  a header row carrying start–end, duration, count, Karat before → after, the drop and the
+  Gap's cost. "Worst of the day" only appears when a day has more than one episode; "Worst in
+  the history" marks the engine's `worstTiltEpisode` (15 July, 12:12–12:42, −16.9K).
+- **One value scale for every Purity series**, so switching the What-if on never moves the
+  actual line. The cost is headroom: the market-conditions scenario ends near $48k, so the
+  account itself uses roughly the lower half of the plot.
+- **The What-if curves are subtraction, and that is the engine's own method.** Each scenario's
+  curve is the actual equity minus the running total of its `removedTradeIds` — the V1 linear
+  method, and why the engine ships those ids. The "every impurity" curve matches the engine's
+  `counterfactualEquity` point for point, and every end figure printed is the scenario's own.
+- **"Counterfactual, not a promise" is printed whether the What-if is on or off**, with the
+  method line beneath the chart; each scenario also says what the Gap bills for the same
+  trades, because the two are not supposed to match (§6.10).
+- **Paths in whole plot units.** Seven curves at one decimal were 91 KB of view; whole units
+  (≈ 1 px at any width drawn), plus a first/low/high/last decimation per bucket, are 60 KB
+  and look the same. Stamps carry no `href` — it is derived from the id.
+- **The stamps are one tab stop**, arrows walk them in close order; hover or focus shows time,
+  R and reasons, Enter or click opens the Dossier.
+
+**Lighthouse** (Lighthouse 13.5, mobile, production build, `next start`, headless Chromium)
+
+| | Performance | Accessibility | Best practices | SEO |
+|---|---|---|---|---|
+| `/vault` mobile | **96** (two runs) | **100** | **100** | **100** |
+| `/demo` mobile | **94–98** | **100** | **100** | **100** |
+
+`/vault` mobile: FCP 1.0 s · LCP 2.7–2.8 s · TBT 60–70 ms · CLS 0.
+`/demo` mobile: FCP 1.2–1.3 s · LCP 2.3–3.0 s · TBT 80–90 ms · CLS 0.004.
+
+**Verified in a real browser** (Playwright on Chromium): hover shows a day's detail; Enter
+opens the Replay and writes `?day=`; → and ↑ move by a day and a week across month shelves;
+Esc closes, clears the URL and returns focus to the day; the What-if toggle and each
+per-pillar scenario draw their curve and difference; a stamp's tooltip shows time, R and
+reasons; no horizontal scroll at 375 px or 1440 px on either page; no console errors. Under
+`prefers-reduced-motion`, `/vault` with a replay open has no animations at all.
+
+**One test note, not a change.** The engine's 1-second benchmark (`performance.test.ts`)
+measured 1,005–1,082 ms on this container (three runs alone, all over), **and failed at
+1,033 ms on the untouched Stage 4 commit** before passing twice there — the same container
+timing Stage 4 recorded. `lib/engine/` is unchanged and so are the threshold and the test;
+it is recorded here rather than loosened. The final full run passed it, 584 of 584.
+
+**Not built, on purpose**
+No Gold Clock (Stage 11), no Constellation, no AI copy. No per-day P&L source toggle in the
+Vault (manual-only fills) — it would be a second definition of a day; noted in `ROADMAP.md`.
+
+**Left standing, for the product owner to call**
+`/styleguide` still exists (see Stage 4).

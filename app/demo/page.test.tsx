@@ -136,14 +136,23 @@ describe('/demo', () => {
   });
 
   it('introduces each scene with its editorial heading, in order', () => {
-    const positions = ['The Assay', 'The Refinery', 'The Gap', 'Your Proof'].map((title) =>
+    const positions = ['The Assay', 'The Refinery', 'The Gap', 'Your Proof', 'The Purity Line'].map((title) =>
       markup.indexOf(`<span>${title}</span>`),
     );
     for (const position of positions) expect(position).toBeGreaterThan(-1);
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
-    for (const number of ['01', '02', '03', '04']) {
+    for (const number of ['01', '02', '03', '04', '05']) {
       expect(markup).toContain(`${number} \u2014`);
     }
+  });
+
+  it('draws the Purity Line below Your Proof, with the permanent What-if label', () => {
+    expect(markup.indexOf('<span>Your Proof</span>')).toBeLessThan(markup.indexOf('<span>The Purity Line</span>'));
+    expect(markup).toContain('data-layer="actual"');
+    expect(markup).toContain(assay.counterfactual.label);
+    expect(markup).toContain('What-if');
+    const stamps = assay.trades.filter((trade) => trade.isManual && trade.impurities.length > 0);
+    expect((markup.match(/data-stamp="/g) ?? []).length).toBe(stamps.length);
   });
 
   it('links the Ledger and leaves the surfaces that do not exist yet disabled rather than broken', () => {
@@ -151,6 +160,7 @@ describe('/demo', () => {
     expect(markup).toMatch(/aria-current="page"[^>]*href="\/demo"/);
     expect(markup).toContain('href="/ledger"');
     expect(markup).not.toMatch(/aria-current="page"[^>]*href="\/ledger"/);
-    expect(markup).not.toContain('href="/vault"');
+    expect(markup).toContain('href="/vault"');
+    expect(markup).not.toMatch(/aria-current="page"[^>]*href="\/vault"/);
   });
 });

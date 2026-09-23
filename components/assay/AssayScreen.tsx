@@ -4,19 +4,21 @@ import { AssayInstrument, type SubDialView } from './AssayInstrument';
 import { ExplainProvider } from './ExplainProvider';
 import { GapScene } from './GapScene';
 import { ProofScene } from './ProofScene';
+import { PurityScene } from './PurityScene';
 import { RefineryScene } from './RefineryScene';
 import { EXPLAIN_IDS, buildExplainIndex, pillarScopeLabel } from './explain';
 
 /**
  * The Assay (CLAUDE.md §4, §17 Stages 3 and 3.5).
  *
- * One page, four scenes, each with its own idea and its own entrance, played
+ * One page, five scenes, each with its own idea and its own entrance, played
  * once as it scrolls into view:
  *
  *   01 — The Assay      the instrument: the Karat dial and its six sub-dials
  *   02 — The Refinery   the three findings worth acting on
  *   03 — The Gap        what indiscipline cost, as a curve and as a bill
  *   04 — Your Proof     the trader's own weeks, scored one by one
+ *   05 — The Purity Line the account's equity, lit by its Karat, with the What-if
  *
  * A server component: the engine result is read here and nothing but the
  * props each visual needs crosses into the browser. The Karat is the hero of
@@ -90,6 +92,7 @@ export function AssayScreen({ assay }: { assay: AssayResult }) {
         <RefineryScene assay={assay} />
         <GapScene assay={assay} />
         <ProofScene assay={assay} />
+        <PurityScene assay={assay} />
 
         <p className="max-w-3xl text-xs leading-relaxed text-text-3">
           Every number on this page opens its own explanation: the formula it comes
