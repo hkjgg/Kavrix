@@ -32,3 +32,7 @@ Everything here is **V2 or later**. Nothing on this list is built in V1
   only. A "manual / EA / all" toggle on the fills would let a trader see their own hand's
   days alone. It needs a manual-only calendar from the engine (`computeStats` already takes
   `manualOnly`), not arithmetic in the page.
+- **Day Assay extras (Vault redesign).** Kept out of V1 on purpose — the Day Assay is a day
+  story, not a replay: price candles under the day chart (needs a bar source, see above), a
+  side-by-side of two days, a shareable "day card" in the Certificate's style, and chapter
+  sentences rewritten by the AI layer (Stage 9) from the same engine JSON.

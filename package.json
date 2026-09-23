@@ -16,6 +16,8 @@
     "engine:report": "tsx scripts/engine-report.ts"
   },
   "dependencies": {
+    "d3-scale": "^4.0.2",
+    "d3-shape": "^3.2.0",
     "lightweight-charts": "^5.2.1",
     "next": "16.3.5",
     "react": "19.3.0",
@@ -23,6 +25,8 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.3",
+    "@types/d3-scale": "^4.0.9",
+    "@types/d3-shape": "^3.2.0",
     "@types/node": "22.19.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",

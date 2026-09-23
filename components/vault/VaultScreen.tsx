@@ -1,46 +1,35 @@
 'use client';
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
+import { Scene } from '@/components/ui';
 import { useLocationSearch } from '@/components/ledger/useLocationSearch';
+import { Ingot, IngotSlot, ShelfOnly, type ShelfEdge } from '@/components/viz/Ingot';
 import { formatKarat, formatMoney, formatR } from '@/lib/format';
 import { WEEKDAYS_MONDAY_FIRST, longDate, shortDate, shortWeekdayDate } from '@/lib/dates';
-import { Replay } from './Replay';
-import type { MonthSummary, VaultDay, VaultMonth, VaultView } from './vault';
-import { INGOT, ingotBand, ingotBody, karatTone, moveDate } from './vault';
+import { DayAssay } from './DayAssay';
+import type { VaultDay, VaultMonth, VaultView } from './vault';
+import { moveDate, stepAssayDay } from './vault';
 
 /**
- * The Vault (CLAUDE.md §8.7) — the history as shelves of ingots.
+ * The Vault (CLAUDE.md §8.7) — the history as shelves of bullion.
  *
- * Each month is a shelf, each week a row of seven slots, Monday first, so the
- * weekday columns line up from shelf to shelf. A trading day is an ingot:
- * filled from its midline by the day's P&L — jade up for a profit, oxblood
- * down for a loss — and engraved with the day's Karat. A day with no trades
- * is an empty slot.
+ * Each month is a shelf of weeks, Monday first, so the weekday columns line
+ * up from shelf to shelf. A trading day is a cast ingot: its **metal is the
+ * day's Karat** — rich gold at 24K down to matte slate for Raw Ore — with the
+ * Karat struck into the top face, and a 2px **assay strip** under it for the
+ * day's P&L, jade or oxblood, against the month's largest day. A day with no
+ * trades is a faint slot recessed into the shelf.
  *
  * One tab stop for the whole calendar: arrows move between days (a week up
  * or down, a day either side), Home and End go to the ends of the history,
- * Enter opens the day's Discipline Replay, and Esc closes it. The open day
- * lives in the URL (`?day=2026-07-15`), so a replay can be linked.
+ * Enter opens the day's Day Assay, and Esc closes it. While a Day Assay is
+ * open it follows the selection. The open day lives in the URL
+ * (`?day=2026-07-15`), so a day can be linked.
  */
 
-const TONE_CLASS: Record<ReturnType<typeof karatTone>, string> = {
-  fine: 'text-gold-light',
-  solid: 'text-gold',
-  mixed: 'text-text-2',
-  raw: 'text-text-3',
-  none: 'text-text-3',
-};
-
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const WIDE = '(min-width: 1280px)';
 
 /** The open day from the query string, when it is a day of the history. */
 export function parseVaultDay(search: string, firstDate: string, lastDate: string): string | null {
@@ -62,80 +51,23 @@ export function dayLabel(day: VaultDay, currency: string): string {
     day.manualTradeCount === day.tradeCount
       ? plural(day.tradeCount, 'trade')
       : `${plural(day.tradeCount, 'trade')}, ${day.manualTradeCount} manual`;
-  const karat = day.karat === null ? 'no manual trades, no day Karat' : `day Karat ${formatKarat(day.karat)}`;
+  const karat =
+    day.karat === null
+      ? 'no manual trades, no day Karat'
+      : `day Karat ${formatKarat(day.karat)}, ${day.tierLabel ?? ''}`;
+  const mark = day.mark === 'best' ? ' Best day of the month.' : day.mark === 'worst' ? ' Worst day of the month.' : '';
   return `${date}: ${trades}. Net ${formatMoney(day.netMoney, { currency, signed: true })}, ${formatR(
     day.netR,
-  )}. ${karat}, ${plural(day.impurityCount, 'impurity', 'impurities')}.`;
+  )}. ${karat}, ${plural(day.impurityCount, 'impurity', 'impurities')}.${mark}`;
 }
 
-function Ingot({ day }: { day: VaultDay }) {
-  const band = ingotBand(day.fill);
-  const tone = karatTone(day.karat);
-  return (
-    <span className="relative block">
-      <svg
-        viewBox={`0 0 ${INGOT.width} ${INGOT.height}`}
-        preserveAspectRatio="none"
-        className="block h-7 w-full sm:h-9"
-        aria-hidden="true"
-      >
-        <polygon
-          points={ingotBody()}
-          fill="var(--surface-2)"
-          stroke="var(--gold)"
-          strokeOpacity={0.3}
-          strokeWidth={1}
-          vectorEffect="non-scaling-stroke"
-        />
-        {band !== null ? (
-          <polygon
-            points={band}
-            fill={day.fill.direction === 'up' ? 'var(--jade)' : 'var(--oxblood)'}
-            fillOpacity={0.5}
-          />
-        ) : null}
-        <line
-          x1={INGOT.inset / 2}
-          x2={INGOT.width - INGOT.inset / 2}
-          y1={INGOT.height / 2}
-          y2={INGOT.height / 2}
-          stroke="var(--gold)"
-          strokeOpacity={0.22}
-          strokeWidth={1}
-          vectorEffect="non-scaling-stroke"
-        />
-        {/* The top face catching the light. */}
-        <line
-          x1={INGOT.inset}
-          x2={INGOT.width - INGOT.inset}
-          y1={0.5}
-          y2={0.5}
-          stroke="var(--gold-light)"
-          strokeOpacity={0.4}
-          strokeWidth={1}
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      <span
-        aria-hidden="true"
-        className={cn(
-          'absolute inset-0 flex items-center justify-center font-mono text-[10px] font-medium [text-shadow:0_1px_0_rgb(0_0_0/0.75)] sm:text-[11px]',
-          TONE_CLASS[tone],
-        )}
-      >
-        {day.karat === null ? (
-          '—'
-        ) : (
-          <>
-            {day.karat.toFixed(1)}
-            <span className="hidden sm:inline">K</span>
-          </>
-        )}
-      </span>
-    </span>
-  );
+function shelfEdge(column: number): ShelfEdge {
+  if (column === 0) return 'start';
+  if (column === 6) return 'end';
+  return 'middle';
 }
 
+/** The micro-tooltip: hover or keyboard focus only, 120 ms in, fade only. */
 function Tooltip({ day, currency }: { day: VaultDay; currency: string }) {
   // Open towards the middle of the shelf so the edge columns stay on screen.
   const align =
@@ -144,8 +76,9 @@ function Tooltip({ day, currency }: { day: VaultDay; currency: string }) {
     <span
       aria-hidden="true"
       className={cn(
-        'pointer-events-none absolute bottom-full z-20 mb-2 hidden w-48 rounded-xl border border-line bg-surface-2 p-3 text-left shadow-[0_12px_32px_rgb(0_0_0/0.55)]',
-        'peer-hover:block peer-focus-visible:block',
+        'pointer-events-none invisible absolute bottom-full z-20 mb-1 w-52 rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-left opacity-0',
+        'transition-[opacity,visibility] duration-150',
+        'peer-hover:visible peer-hover:opacity-100 peer-hover:delay-[120ms] peer-focus-visible:visible peer-focus-visible:opacity-100 peer-focus-visible:delay-[120ms]',
         align,
       )}
     >
@@ -153,34 +86,35 @@ function Tooltip({ day, currency }: { day: VaultDay; currency: string }) {
         {shortWeekdayDate(day.date)}
       </span>
       {day.kind === 'quiet' ? (
-        <span className="mt-2 block text-xs text-text-2">No trades</span>
+        <span className="mt-1.5 block text-xs text-text-2">No trades</span>
       ) : (
-        <span className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-[11px]">
-          <span className="text-text-3">Trades</span>
-          <span className="text-right text-text">
-            {day.tradeCount}
-            {day.manualTradeCount !== day.tradeCount ? (
-              <span className="text-text-3"> · {day.manualTradeCount} manual</span>
-            ) : null}
+        <>
+          <span className="mt-1.5 flex items-baseline gap-2">
+            <span className="font-serif text-lg leading-none text-gold">
+              {day.karat === null ? '—' : formatKarat(day.karat)}
+            </span>
+            <span className="text-[10px] uppercase tracking-[1.5px] text-text-3">{day.tierLabel ?? 'EA only'}</span>
           </span>
-          <span className="text-text-3">Net</span>
-          <span className={cn('text-right', day.netMoney >= 0 ? 'text-jade' : 'text-oxblood-text')}>
-            {formatMoney(day.netMoney, { currency, signed: true })}
+          <span className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-[11px]">
+            <span className="text-text-3">Net</span>
+            <span className={cn('text-right', day.netMoney >= 0 ? 'text-jade' : 'text-oxblood-text')}>
+              {formatMoney(day.netMoney, { currency, signed: true })}
+            </span>
+            <span className="text-text-3">R</span>
+            <span className={cn('text-right', day.netR >= 0 ? 'text-jade' : 'text-oxblood-text')}>
+              {formatR(day.netR)}
+            </span>
+            <span className="text-text-3">Trades</span>
+            <span className="text-right text-text">
+              {day.tradeCount}
+              {day.manualTradeCount !== day.tradeCount ? (
+                <span className="text-text-3"> · {day.manualTradeCount} manual</span>
+              ) : null}
+            </span>
+            <span className="text-text-3">Impurities</span>
+            <span className="text-right text-text">{day.impurityCount}</span>
           </span>
-          <span className="text-text-3">Net R</span>
-          <span className={cn('text-right', day.netR >= 0 ? 'text-jade' : 'text-oxblood-text')}>
-            {formatR(day.netR)}
-          </span>
-          <span className="text-text-3">Day Karat</span>
-          <span className="text-right text-gold">
-            {day.karat === null ? '—' : formatKarat(day.karat)}
-          </span>
-          <span className="text-text-3">Impurities</span>
-          <span className="text-right text-text">
-            {day.impurityCount}
-            <span className="text-text-3"> of {day.manualTradeCount}</span>
-          </span>
-        </span>
+        </>
       )}
     </span>
   );
@@ -206,31 +140,35 @@ function DayCell({ day, currency, active, open, onOpen, register }: DayCellProps
         tabIndex={active ? 0 : -1}
         aria-pressed={open}
         aria-controls="vault-replay-panel"
-        aria-label={`${dayLabel(day, currency)} Open the replay.`}
+        aria-label={`${dayLabel(day, currency)} Open the Day Assay.`}
         data-date={day.date}
         data-kind={day.kind}
+        data-mark={day.mark ?? undefined}
         onClick={() => {
           onOpen(day.date);
         }}
-        className={cn(
-          'peer flex w-full cursor-pointer flex-col gap-1 rounded-lg p-1 text-left transition-colors',
-          'hover:bg-surface-2 focus-visible:bg-surface-2',
-          open && 'bg-surface-2 shadow-[inset_0_0_0_1px_var(--gold)]',
-        )}
+        className="vault-day peer block w-full cursor-pointer rounded-md px-0 pt-1 text-left focus-visible:outline-offset-0"
       >
         <span
           aria-hidden="true"
-          className={cn('font-mono text-[9px] leading-none', open ? 'text-gold' : 'text-text-3')}
+          className={cn(
+            'block px-1.5 font-mono text-[9px] leading-3 transition-colors',
+            open ? 'text-gold' : 'text-text-3',
+          )}
         >
           {day.day}
         </span>
         {day.kind === 'trading' ? (
-          <Ingot day={day} />
-        ) : (
-          <span
-            aria-hidden="true"
-            className="block h-7 rounded-[3px] border border-dashed border-line sm:h-9"
+          <Ingot
+            tier={day.tier}
+            karat={day.karat}
+            strip={day.strip}
+            mark={day.mark}
+            selected={open}
+            shelf={shelfEdge(day.column)}
           />
+        ) : (
+          <IngotSlot shelf={shelfEdge(day.column)} />
         )}
       </button>
       <Tooltip day={day} currency={currency} />
@@ -240,50 +178,10 @@ function DayCell({ day, currency, active, open, onOpen, register }: DayCellProps
 
 function SummaryItem({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-1">
-      <dt className="text-[10px] font-medium uppercase tracking-[2px] text-text-3">{label}</dt>
-      <dd className="font-mono text-xs text-text">{children}</dd>
+    <div className="flex items-baseline gap-1.5">
+      <dt className="text-[10px] font-medium uppercase tracking-[1.5px] text-text-3">{label}</dt>
+      <dd className="font-mono text-[11px] text-text-2">{children}</dd>
     </div>
-  );
-}
-
-function Summary({ summary, currency }: { summary: MonthSummary; currency: string }) {
-  return (
-    <dl className="grid grid-cols-2 gap-x-6 gap-y-3 border-t border-line pt-4 sm:grid-cols-3 md:w-48 md:shrink-0 md:grid-cols-1 md:content-start md:self-start md:border-l md:border-t-0 md:pl-6 md:pt-10">
-      <SummaryItem label="Trading days">{summary.tradingDays}</SummaryItem>
-      <SummaryItem label="Net R">
-        <span className={summary.netR >= 0 ? 'text-jade' : 'text-oxblood-text'}>{formatR(summary.netR)}</span>
-      </SummaryItem>
-      <SummaryItem label="Best day">
-        {summary.best === null ? (
-          '—'
-        ) : (
-          <>
-            <span className={summary.best.netMoney >= 0 ? 'text-jade' : 'text-oxblood-text'}>
-              {formatMoney(summary.best.netMoney, { currency, signed: true })}
-            </span>
-            <span className="text-text-3"> · {shortDate(summary.best.date)}</span>
-          </>
-        )}
-      </SummaryItem>
-      <SummaryItem label="Worst day">
-        {summary.worst === null ? (
-          '—'
-        ) : (
-          <>
-            <span className={summary.worst.netMoney >= 0 ? 'text-jade' : 'text-oxblood-text'}>
-              {formatMoney(summary.worst.netMoney, { currency, signed: true })}
-            </span>
-            <span className="text-text-3"> · {shortDate(summary.worst.date)}</span>
-          </>
-        )}
-      </SummaryItem>
-      <SummaryItem label="Avg day Karat">
-        <span className="text-gold">
-          {summary.averageKarat === null ? '—' : formatKarat(summary.averageKarat)}
-        </span>
-      </SummaryItem>
-    </dl>
   );
 }
 
@@ -298,55 +196,100 @@ interface ShelfProps {
 
 function Shelf({ month, currency, focusDate, openDate, onOpen, register }: ShelfProps) {
   const titleId = `vault-shelf-${month.key}`;
+  const { summary } = month;
   return (
-    <section aria-labelledby={titleId} className="flex flex-col gap-5 md:flex-row md:gap-0">
-      <div className="min-w-0 flex-1 md:max-w-[560px] md:pr-6">
+    <Scene aria-labelledby={titleId} className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <h2 id={titleId} className="flex items-baseline gap-3">
           <span className="font-mono text-[11px] tracking-[2px] text-gold">{month.key.slice(5)}</span>
-          <span className="font-serif text-2xl text-text">{month.label}</span>
+          <span aria-hidden="true" className="text-text-3">
+            —
+          </span>
+          <span className="font-serif text-3xl leading-none text-text">{month.label}</span>
         </h2>
-
-        <div aria-hidden="true" className="mt-4 grid grid-cols-7 gap-1 sm:gap-1.5">
-          {WEEKDAYS_MONDAY_FIRST.map((name) => (
-            <span
-              key={name}
-              className="px-1 text-[9px] font-medium uppercase tracking-[1.5px] text-text-3 sm:text-[10px]"
-            >
-              <span className="sm:hidden">{name.slice(0, 1)}</span>
-              <span className="hidden sm:inline">{name.slice(0, 3)}</span>
+        {summary.averageKarat !== null ? (
+          <span
+            className="engraved inline-flex items-baseline gap-2 rounded-md px-2.5 py-1"
+            data-average-tier={summary.averageTier ?? undefined}
+          >
+            <span className="text-[9px] font-medium uppercase tracking-[2px] text-text-3">Avg day Karat</span>
+            <span className="font-serif text-xl leading-none text-gold [text-shadow:0_-1px_0_rgb(255_255_255/0.12),0_1px_0_rgb(0_0_0/0.8)]">
+              {formatKarat(summary.averageKarat)}
             </span>
-          ))}
-        </div>
-
-        <div className="mt-2 flex flex-col gap-2.5">
-          {month.weeks.map((week, weekIndex) => (
-            <div key={`${month.key}-${weekIndex}`}>
-              <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
-                {week.map((day, column) =>
-                  day === null ? (
-                    <span key={column} aria-hidden="true" />
-                  ) : (
-                    <DayCell
-                      key={day.date}
-                      day={day}
-                      currency={currency}
-                      active={day.date === focusDate}
-                      open={day.date === openDate}
-                      onOpen={onOpen}
-                      register={register}
-                    />
-                  ),
-                )}
-              </div>
-              {/* The ledge the week's ingots stand on. */}
-              <span aria-hidden="true" className="vault-shelf mt-1 block h-px" />
-            </div>
-          ))}
-        </div>
+          </span>
+        ) : null}
       </div>
 
-      <Summary summary={month.summary} currency={currency} />
-    </section>
+      <dl className="flex flex-wrap gap-x-5 gap-y-1.5">
+        <SummaryItem label="Trading days">{summary.tradingDays}</SummaryItem>
+        <SummaryItem label="Net R">
+          <span className={summary.netR >= 0 ? 'text-jade' : 'text-oxblood-text'}>{formatR(summary.netR)}</span>
+        </SummaryItem>
+        <SummaryItem label="Best day">
+          {summary.best === null ? (
+            '—'
+          ) : (
+            <>
+              <span className={summary.best.netMoney >= 0 ? 'text-jade' : 'text-oxblood-text'}>
+                {formatMoney(summary.best.netMoney, { currency, signed: true })}
+              </span>
+              <span className="text-text-3"> · {shortDate(summary.best.date)}</span>
+            </>
+          )}
+        </SummaryItem>
+        <SummaryItem label="Worst day">
+          {summary.worst === null ? (
+            '—'
+          ) : (
+            <>
+              <span className={summary.worst.netMoney >= 0 ? 'text-jade' : 'text-oxblood-text'}>
+                {formatMoney(summary.worst.netMoney, { currency, signed: true })}
+              </span>
+              <span className="text-text-3"> · {shortDate(summary.worst.date)}</span>
+            </>
+          )}
+        </SummaryItem>
+      </dl>
+
+      <div aria-hidden="true" className="grid grid-cols-7">
+        {WEEKDAYS_MONDAY_FIRST.map((name) => (
+          <span
+            key={name}
+            className="px-1.5 text-[9px] font-medium uppercase tracking-[1.5px] text-text-3 sm:text-[10px]"
+          >
+            <span className="sm:hidden">{name.slice(0, 1)}</span>
+            <span className="hidden sm:inline">{name.slice(0, 3)}</span>
+          </span>
+        ))}
+      </div>
+
+      <div className="relative -mt-2 flex flex-col gap-1">
+        {month.weeks.map((week, weekIndex) => (
+          <div key={`${month.key}-${weekIndex}`} className="grid grid-cols-7">
+            {week.map((day, column) =>
+              day === null ? (
+                <div key={column} aria-hidden="true" className="pt-1">
+                  <span className="block h-3" />
+                  <ShelfOnly shelf={shelfEdge(column)} />
+                </div>
+              ) : (
+                <DayCell
+                  key={day.date}
+                  day={day}
+                  currency={currency}
+                  active={day.date === focusDate}
+                  open={day.date === openDate}
+                  onOpen={onOpen}
+                  register={register}
+                />
+              ),
+            )}
+          </div>
+        ))}
+        {/* One slow pass of light along the shelf, the first time it is seen. */}
+        <span aria-hidden="true" className="shelf-sweep enter-shelf-sweep" />
+      </div>
+    </Scene>
   );
 }
 
@@ -359,6 +302,7 @@ export function VaultScreen({ view }: { view: VaultView }) {
     [view.months],
   );
   const byDate = useMemo(() => new Map(days.map((day) => [day.date, day])), [days]);
+  const assayDates = useMemo(() => Object.keys(view.assays).sort(), [view.assays]);
   const lastTrading = useMemo(
     () => [...days].reverse().find((day) => day.kind === 'trading')?.date ?? view.lastDate,
     [days, view.lastDate],
@@ -375,54 +319,70 @@ export function VaultScreen({ view }: { view: VaultView }) {
     else buttons.current.set(date, node);
   }, []);
 
-  const panelRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const reveal = useRef(false);
+  const reveal = useRef<'auto' | 'heading' | null>(null);
   const [announcement, setAnnouncement] = useState('');
 
   const open = useCallback(
-    (date: string) => {
+    (date: string, reveal_: 'auto' | 'heading' = 'auto') => {
       setCursor(date);
-      reveal.current = true;
+      reveal.current = reveal_;
       replaceSearch(`day=${date}`);
-      const replay = view.replays[date];
+      const assay = view.assays[date];
       setAnnouncement(
-        replay === undefined
-          ? `Replay for ${longDate(date)}: no trades.`
-          : `Replay for ${longDate(date)}: ${plural(replay.tradeCount, 'trade')}, day Karat ${formatKarat(
-              replay.karat,
-            )}, ${plural(replay.spans.length, 'tilt episode')}.`,
+        assay === undefined
+          ? `Day Assay for ${longDate(date)}: no manual trades.`
+          : `Day Assay for ${longDate(date)}: ${plural(assay.tradeCount, 'trade')}, day Karat ${formatKarat(
+              assay.karat,
+            )}, ${plural(assay.chapters.length, 'chapter')}.`,
       );
     },
-    [replaceSearch, view.replays],
+    [replaceSearch, view.assays],
   );
 
   const close = useCallback(() => {
     const date = openDate;
     replaceSearch('');
-    setAnnouncement('Replay closed.');
+    setAnnouncement('Day Assay closed.');
     if (date !== null) {
       setCursor(date);
       buttons.current.get(date)?.focus();
     }
   }, [openDate, replaceSearch]);
 
-  // A replay opened below the fold (a phone, a narrow window) is brought into
-  // view and takes focus; one already on screen beside the calendar leaves
-  // focus on the day, so the arrows can keep walking the week.
+  const step = useCallback(
+    (direction: -1 | 1) => {
+      if (openDate === null) return;
+      const next = stepAssayDay(openDate, direction, assayDates);
+      if (next !== null) open(next, 'heading');
+    },
+    [assayDates, open, openDate],
+  );
+
+  // Beside the calendar (wide screens) focus stays on the day, so the arrows
+  // keep walking the week. As a sheet (phones, narrow windows) the Day Assay
+  // takes focus. Stepping from inside the panel always lands on its heading.
   useEffect(() => {
-    if (!reveal.current || openDate === null) return;
-    reveal.current = false;
-    const panel = panelRef.current;
-    if (panel === null) return;
-    const box = panel.getBoundingClientRect();
-    if (box.top >= 0 && box.top < window.innerHeight * 0.6) return;
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    panel.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
-    headingRef.current?.focus({ preventScroll: true });
+    const how = reveal.current;
+    if (how === null || openDate === null) return;
+    reveal.current = null;
+    const wide = typeof window.matchMedia === 'function' && window.matchMedia(WIDE).matches;
+    if (how === 'heading' || !wide) headingRef.current?.focus({ preventScroll: true });
   }, [openDate]);
 
-  // Esc closes the replay from anywhere on the page.
+  // As a sheet, the page behind it holds still.
+  useEffect(() => {
+    if (openDate === null) return;
+    if (typeof window.matchMedia !== 'function' || window.matchMedia(WIDE).matches) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [openDate]);
+
+  // Esc closes the Day Assay from anywhere on the page — unless the panel
+  // used it first, to let go of a highlight.
   useEffect(() => {
     if (openDate === null) return;
     const onKey = (event: globalThis.KeyboardEvent) => {
@@ -446,22 +406,24 @@ export function VaultScreen({ view }: { view: VaultView }) {
     event.preventDefault();
     setCursor(next);
     buttons.current.get(next)?.focus();
+    // An open Day Assay follows the selection.
+    if (openDate !== null && next !== openDate) open(next);
   };
 
   const openDay = openDate === null ? null : (byDate.get(openDate) ?? null);
 
   return (
-    <div className="grid grid-cols-1 gap-14 xl:grid-cols-[minmax(0,1fr)_minmax(0,460px)] xl:gap-12">
+    <div className="grid grid-cols-1 gap-14 xl:grid-cols-[minmax(0,620px)_minmax(0,1fr)] xl:gap-12">
       <div
         role="group"
         aria-label="Days of the history"
         aria-describedby="vault-keys"
         onKeyDown={onKeyDown}
-        className="flex min-w-0 flex-col gap-12"
+        className="flex min-w-0 flex-col gap-14"
       >
         <p id="vault-keys" className="sr-only">
           Arrow keys move between days, a week up or down and a day either side. Home and End go to
-          the first and last day. Enter opens the day&rsquo;s replay; Escape closes it.
+          the first and last day. Enter opens the day&rsquo;s Day Assay; Escape closes it.
         </p>
         {view.months.map((month) => (
           <Shelf
@@ -476,18 +438,24 @@ export function VaultScreen({ view }: { view: VaultView }) {
         ))}
       </div>
 
+      {openDate !== null ? (
+        <div aria-hidden="true" onClick={close} className="veil-in fixed inset-0 z-40 bg-black/65 xl:hidden" />
+      ) : null}
+
       <div
         id="vault-replay-panel"
-        ref={panelRef}
-        className="scroll-mt-32 lg:scroll-mt-24 xl:sticky xl:top-24 xl:max-h-[calc(100dvh-7rem)] xl:self-start xl:overflow-y-auto"
+        className={cn(
+          openDate === null
+            ? 'hidden xl:block'
+            : 'sheet-in fixed inset-x-0 bottom-0 z-50 max-h-[88dvh] overflow-y-auto overscroll-contain',
+          'xl:sticky xl:inset-auto xl:top-24 xl:z-auto xl:max-h-[calc(100dvh-7rem)] xl:animate-none xl:self-start xl:overflow-y-auto',
+        )}
       >
         {openDate === null ? (
           <div className="flex flex-col gap-4 rounded-card border border-line bg-surface-1 p-5 sm:p-6">
-            <span className="text-[11px] font-medium uppercase tracking-[3px] text-text-3">
-              Discipline Replay
-            </span>
+            <span className="text-[11px] font-medium uppercase tracking-[3px] text-text-3">Day Assay</span>
             <p className="font-serif text-xl leading-snug text-text-2">
-              Choose a day to replay it, trade by trade.
+              Choose a day to assay it: the chart, the chapters, the bill.
             </p>
             <p className="text-xs leading-relaxed text-text-3">
               Arrows move between days · Enter opens · Esc closes
@@ -506,15 +474,21 @@ export function VaultScreen({ view }: { view: VaultView }) {
             ) : null}
           </div>
         ) : (
-          <Replay
+          <DayAssay
             key={openDate}
             date={openDate}
-            day={view.replays[openDate] ?? null}
+            assay={view.assays[openDate] ?? null}
             vaultDay={openDay}
             currency={view.currency}
-            reasons={view.reasons}
+            sessions={view.sessions}
             onClose={close}
+            onStep={step}
+            canStep={{
+              previous: stepAssayDay(openDate, -1, assayDates) !== null,
+              next: stepAssayDay(openDate, 1, assayDates) !== null,
+            }}
             headingRef={headingRef}
+            className="max-xl:rounded-b-none max-xl:border-b-0"
           />
         )}
       </div>

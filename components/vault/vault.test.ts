@@ -1,31 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarDay } from '@/lib/engine';
-import { enrichTrades, replayDay, resolveSettings } from '@/lib/engine';
+import { dayStory, enrichTrades, replayDay, resolveSettings, tierFor } from '@/lib/engine';
 import { makeNews, makeTrades } from '@/lib/engine/fixtures';
 import type { TradeSpec } from '@/lib/engine/fixtures';
-import {
-  INGOT,
-  MIN_FILL_SHARE,
-  buildReplayDayView,
-  buildShelves,
-  buildVaultView,
-  ingotBand,
-  ingotFill,
-  karatTone,
-  karatX,
-  monthSummary,
-  moveDate,
-  replaySegment,
-  tiltSpans,
-} from './vault';
+import { buildDayAssayView, sentenceParts } from './dayAssay';
+import { buildShelves, buildVaultView, monthSummary, moveDate, stepAssayDay } from './vault';
 import type { VaultDay } from './vault';
 
 const settings = resolveSettings();
 const NEWS = [makeNews('2026-03-02T12:30:00Z', 'US CPI', 1), makeNews('2026-03-02T13:30:00Z', 'US Retail Sales', 2)];
+const tierOf = (karat: number) => tierFor(karat).label;
 
-function replayOf(specs: readonly TradeSpec[]) {
+function storyOf(specs: readonly TradeSpec[]) {
   const trades = enrichTrades({ trades: makeTrades(specs.slice()), modifications: [], calendar: NEWS }, settings);
-  return replayDay('2026-03-02', trades, settings);
+  return dayStory({ day: replayDay('2026-03-02', trades, settings), trades, calendar: NEWS, settings });
 }
 
 function calendarDay(date: string, netMoney: number, karat: number | null = 20): CalendarDay {
@@ -35,65 +23,90 @@ function calendarDay(date: string, netMoney: number, karat: number | null = 20):
 function vaultOf(days: CalendarDay[], firstDate: string, lastDate: string) {
   return buildVaultView({
     calendarDays: days,
-    replay: [],
+    stories: [],
     firstDate,
     lastDate,
     currency: 'USD',
     worst: null,
-    billedTo: (pillar) => pillar,
+    tierOf,
   });
+}
+
+function daysOf(view: ReturnType<typeof vaultOf>): VaultDay[] {
+  return view.months.flatMap((month) => month.weeks.flat()).filter((day): day is VaultDay => day !== null);
 }
 
 /* ------------------------------------------------------------------------- */
 
-describe('ingotFill — the day cell’s fill and colour', () => {
-  it('fills up from the midline for a profit and down for a loss', () => {
-    expect(ingotFill(500, 1000)).toEqual({ direction: 'up', share: 0.5 });
-    expect(ingotFill(-250, 1000)).toEqual({ direction: 'down', share: 0.25 });
-  });
-
-  it('is linear in money against the largest day, and full at it', () => {
-    expect(ingotFill(-1000, 1000).share).toBe(1);
-    expect(ingotFill(1000, 1000).share).toBe(1);
-  });
-
-  it('never draws a moving day as nothing, and a flat day as empty', () => {
-    expect(ingotFill(1, 1000)).toEqual({ direction: 'up', share: MIN_FILL_SHARE });
-    expect(ingotFill(0, 1000)).toEqual({ direction: 'none', share: 0 });
-    expect(ingotFill(Number.NaN, 1000).direction).toBe('none');
-  });
-
-  it('keeps the band inside the bar: profit above the midline, loss below', () => {
-    const mid = INGOT.height / 2;
-    const up = ingotBand({ direction: 'up', share: 1 });
-    const down = ingotBand({ direction: 'down', share: 1 });
-    const ys = (points: string | null) => (points ?? '').split(' ').map((pair) => Number(pair.split(',')[1]));
-    expect(Math.max(...ys(up))).toBe(mid);
-    expect(Math.min(...ys(up))).toBe(INGOT.margin);
-    expect(Math.min(...ys(down))).toBe(mid);
-    expect(Math.max(...ys(down))).toBe(INGOT.height - INGOT.margin);
-    expect(ingotBand({ direction: 'none', share: 0 })).toBeNull();
-    // Half a profit reaches half-way to the top face: 17 − 14 × 0.5 = 10, where
-    // the sloped side stands at 7 × (1 − 10/34) = 4.94 from the edge.
-    expect(ingotBand({ direction: 'up', share: 0.5 })).toBe('4.94,10 55.06,10 56.5,17 3.5,17');
-  });
-
-  it('engraves the Karat in the gold family by tier, never in P&L colours', () => {
-    expect(karatTone(23.1)).toBe('fine');
-    expect(karatTone(18)).toBe('solid');
-    expect(karatTone(14.2)).toBe('mixed');
-    expect(karatTone(7.1)).toBe('raw');
-    expect(karatTone(null)).toBe('none');
-  });
-
-  it('marks trading days jade or oxblood by their own money', () => {
-    const view = vaultOf([calendarDay('2026-07-01', 400), calendarDay('2026-07-02', -800)], '2026-07-01', '2026-07-02');
-    const days = view.months[0]?.weeks.flat().filter((day): day is VaultDay => day !== null) ?? [];
-    expect(days.map((day) => day.fill)).toEqual([
-      { direction: 'up', share: 0.5 },
-      { direction: 'down', share: 1 },
+describe('the ingot’s metal and strip — per day, per month', () => {
+  it('casts each day in the engine’s tier for its Karat', () => {
+    const view = vaultOf(
+      [
+        calendarDay('2026-07-01', 100, 24),
+        calendarDay('2026-07-02', 100, 22),
+        calendarDay('2026-07-03', 100, 18.4),
+        calendarDay('2026-07-06', 100, 14),
+        calendarDay('2026-07-07', 100, 10.2),
+        calendarDay('2026-07-08', 100, 7.1),
+        calendarDay('2026-07-09', 100, null),
+      ],
+      '2026-07-01',
+      '2026-07-09',
+    );
+    const trading = daysOf(view).filter((day) => day.kind === 'trading');
+    expect(trading.map((day) => day.tier)).toEqual(['pure', 'refined', 'solid', 'mixed', 'alloyed', 'raw', null]);
+    expect(trading.map((day) => day.tierLabel)).toEqual([
+      '24K · Pure',
+      '22K · Refined',
+      '18K · Solid',
+      '14K · Mixed',
+      '10K · Alloyed',
+      'Raw Ore',
+      null,
     ]);
-    expect(view.maxAbsMoney).toBe(800);
+  });
+
+  it('measures the strip against the month’s own largest day, not the history’s', () => {
+    const view = vaultOf(
+      [calendarDay('2026-06-30', -2000), calendarDay('2026-07-01', 400), calendarDay('2026-07-02', -800)],
+      '2026-06-30',
+      '2026-07-02',
+    );
+    const [june, july] = view.months;
+    expect(june?.maxAbsMoney).toBe(2000);
+    expect(july?.maxAbsMoney).toBe(800);
+    const julyDays = july?.weeks.flat().filter((day): day is VaultDay => day !== null) ?? [];
+    expect(julyDays.map((day) => day.strip)).toEqual([
+      { direction: 'profit', share: 0.5 },
+      { direction: 'loss', share: 1 },
+    ]);
+  });
+
+  it('hallmarks the month’s best and worst day once each, and a one-day month not at all', () => {
+    const view = vaultOf(
+      [
+        calendarDay('2026-06-30', 50),
+        calendarDay('2026-07-01', 300),
+        calendarDay('2026-07-02', -500),
+        calendarDay('2026-07-03', 100),
+      ],
+      '2026-06-30',
+      '2026-07-03',
+    );
+    const [june, july] = view.months;
+    expect(june?.weeks.flat().map((day) => day?.mark ?? null)).not.toContain('best');
+    const marks = (july?.weeks.flat() ?? []).flatMap((day) => (day === null || day.mark === null ? [] : [[day.date, day.mark]]));
+    expect(marks).toEqual([
+      ['2026-07-01', 'best'],
+      ['2026-07-02', 'worst'],
+    ]);
+  });
+
+  it('stamps the month’s mean day Karat with its tier', () => {
+    const view = vaultOf([calendarDay('2026-07-01', 100, 22), calendarDay('2026-07-02', 100, 15)], '2026-07-01', '2026-07-02');
+    // (22 + 15) ÷ 2 = 18.5 → 18K · Solid.
+    expect(view.months[0]?.summary.averageKarat).toBe(18.5);
+    expect(view.months[0]?.summary.averageTier).toBe('solid');
   });
 });
 
@@ -130,7 +143,8 @@ describe('buildShelves — the calendar across month boundaries', () => {
     const saturday = july?.weeks[0]?.[5];
     expect(saturday?.date).toBe('2026-07-04');
     expect(saturday?.kind).toBe('quiet');
-    expect(saturday?.fill.direction).toBe('none');
+    expect(saturday?.strip.direction).toBe('none');
+    expect(saturday?.tier).toBeNull();
     expect(july?.weeks[0]?.[2]?.kind).toBe('trading');
   });
 
@@ -164,6 +178,7 @@ describe('monthSummary', () => {
       best: { date: '2026-07-01', netMoney: 300 },
       worst: { date: '2026-07-02', netMoney: -500 },
       averageKarat: 18.7,
+      averageTier: null,
     });
   });
 
@@ -176,6 +191,7 @@ describe('monthSummary', () => {
       best: null,
       worst: null,
       averageKarat: null,
+      averageTier: null,
     });
   });
 });
@@ -204,81 +220,114 @@ describe('moveDate — the calendar keyboard', () => {
   });
 });
 
-describe('the Replay — order and the running Karat, against a hand-worked fixture', () => {
+
+describe('stepAssayDay — the Day Assay’s own arrows', () => {
+  const dates = ['2026-07-01', '2026-07-02', '2026-07-06'];
+
+  it('goes to the nearest day either side that has an assay', () => {
+    expect(stepAssayDay('2026-07-02', 1, dates)).toBe('2026-07-06');
+    expect(stepAssayDay('2026-07-06', -1, dates)).toBe('2026-07-02');
+    // From a quiet day in between.
+    expect(stepAssayDay('2026-07-04', -1, dates)).toBe('2026-07-02');
+    expect(stepAssayDay('2026-07-04', 1, dates)).toBe('2026-07-06');
+  });
+
+  it('stops at the ends', () => {
+    expect(stepAssayDay('2026-07-01', -1, dates)).toBeNull();
+    expect(stepAssayDay('2026-07-06', 1, dates)).toBeNull();
+  });
+});
+
+describe('buildDayAssayView — one day, joined trade by trade', () => {
   // $10,000, 1% risk, 1R = $100. The 12:28 entry is two minutes before CPI.
-  const day = replayOf([
+  const story = storyOf([
     { openTime: '2026-03-02T15:00:00Z', netProfit: 100 },
     { openTime: '2026-03-02T08:00:00Z', netProfit: 100 },
     { openTime: '2026-03-02T12:28:00Z', netProfit: -100 },
   ]);
-  const view = buildReplayDayView(day, undefined);
+  const view = buildDayAssayView(story, { eaTradeCount: 2 });
 
-  it('lists the trades in the order they were opened', () => {
-    expect(view.rows.map((row) => row.time)).toEqual(['08:00', '12:28', '15:00']);
-    expect(view.rows.map((row) => row.index)).toEqual([1, 2, 3]);
+  it('lists the trades in the order they were opened, each with its close', () => {
+    expect(view.trades.map((trade) => [trade.entry, trade.close])).toEqual([
+      ['08:00', '09:00'],
+      ['12:28', '13:28'],
+      ['15:00', '16:00'],
+    ]);
+    expect(view.trades.map((trade) => trade.cumulative)).toEqual([100, 0, 100]);
+    expect(view.eaTradeCount).toBe(2);
   });
 
   it('carries the running day Karat after each trade', () => {
     // 1. Clean: 100 points → 24.0K.
     // 2. News: Market Conditions 10 × (1 − 1/2) = 5 → 95 points → 22.8K.
     // 3. Clean: Market Conditions 10 × (1 − 1/3) → 96.67 points → 23.2K.
-    expect(view.rows.map((row) => row.karatBefore)).toEqual([24, 24, 22.8]);
-    expect(view.rows.map((row) => row.karatAfter)).toEqual([24, 22.8, 23.2]);
-    expect(view.rows.map((row) => row.karatChange)).toEqual([0, -1.2, 0.4]);
+    expect(view.trades.map((trade) => trade.karatBefore)).toEqual([24, 24, 22.8]);
+    expect(view.trades.map((trade) => trade.karatAfter)).toEqual([24, 22.8, 23.2]);
     expect(view.karat).toBe(23.2);
+    expect(view.tierLabel).toBe('22K · Refined');
   });
 
-  it('names each impurity and what the Gap bills for it', () => {
-    expect(view.rows[1]?.impurities).toEqual(['news']);
-    expect(view.rows[1]?.costMoney).toBe(100);
-    expect(view.rows[1]?.billedTo).toBe('market');
-    expect(view.rows[0]?.billedTo).toBeNull();
+  it('names each trade’s chapter: the open, the slip, the close', () => {
+    expect(view.chapters.map((chapter) => [chapter.number, chapter.title, chapter.range])).toEqual([
+      [1, 'The open', '08:00–09:00'],
+      [2, 'The slip', '12:28–13:28'],
+      [3, 'The close', '15:00–16:00'],
+    ]);
+    expect(view.trades.map((trade) => trade.chapterId)).toEqual(['open', 'slip-1', 'close']);
+    expect(view.trades[1]?.impurities).toEqual(['news']);
   });
 
-  it('draws one continuous line: each row enters where the last one left', () => {
-    expect(karatX(24)).toBe(100);
-    expect(karatX(12)).toBe(50);
-    expect(karatX(0)).toBe(0);
-    expect(replaySegment(24, 22.8)).toBe('M100 0 L100 22 L95 50 L95 100');
-    const segments = view.rows.map((row) => replaySegment(row.karatBefore, row.karatAfter));
-    for (let index = 1; index < segments.length; index += 1) {
-      // The x it leaves the bottom at is the x the next row enters the top at.
-      const exit = segments[index - 1]?.split(' L').pop()?.split(' ')[0];
-      const entry = segments[index]?.slice(1).split(' ')[0];
-      expect(exit).toBe(entry);
-    }
+  it('keeps the releases, in time order', () => {
+    expect(view.news.map((event) => [event.time, event.name])).toEqual([
+      ['12:30', 'US CPI'],
+      ['13:30', 'US Retail Sales'],
+    ]);
+  });
+
+  it('marks the worst tilt of the history on its own chapter only', () => {
+    const tilted = storyOf([
+      { openTime: '2026-03-02T12:20:00Z', netProfit: -100 },
+      { openTime: '2026-03-02T12:40:00Z', netProfit: -100 },
+    ]);
+    const start = tilted.chapters[0]?.from ?? '';
+    expect(buildDayAssayView(tilted, { worst: { date: '2026-03-02', start } }).chapters[0]?.worstOverall).toBe(true);
+    expect(buildDayAssayView(tilted, { worst: { date: '2026-03-03', start } }).chapters[0]?.worstOverall).toBe(false);
   });
 });
 
-describe('tiltSpans — where a tilt episode’s bracket opens and closes', () => {
-  // 12:20 news loss → 12:50 clean → 13:18 news loss (58 min after the first) → 16:00 no stop.
-  const day = replayOf([
-    { openTime: '2026-03-02T08:00:00Z', netProfit: 100 },
-    { openTime: '2026-03-02T12:20:00Z', netProfit: -100 },
-    { openTime: '2026-03-02T12:50:00Z', netProfit: 100 },
-    { openTime: '2026-03-02T13:18:00Z', netProfit: -100 },
-    { openTime: '2026-03-02T16:00:00Z', netProfit: -100, slDistance: null },
-  ]);
-
-  it('brackets the rows from the first impurity of the run to the last, clean trades inside it', () => {
-    expect(day.episodes).toHaveLength(1);
-    const spans = tiltSpans(day);
-    expect(spans).toHaveLength(1);
-    expect(spans[0]).toMatchObject({ startIndex: 1, endIndex: 3, start: '12:20', end: '13:18', impurityTradeCount: 2 });
-    expect(spans[0]?.karatDrop).toBe(day.episodes[0]?.karatDrop);
-    expect(spans[0]?.costMoney).toBe(200);
+describe('sentenceParts — phrases cut out of a sentence', () => {
+  it('splits a sentence into text and its linked phrases, in order', () => {
+    const parts = sentenceParts({
+      text: '5 impurities in 27 minutes: mostly 4 oversized positions and 3 revenge trades.',
+      links: [
+        { phrase: '5 impurities', tradeIds: ['a'] },
+        { phrase: '4 oversized positions', tradeIds: ['b'] },
+        { phrase: '3 revenge trades', tradeIds: ['c'] },
+      ],
+    });
+    expect(parts.map((part) => part.text).join('')).toBe(
+      '5 impurities in 27 minutes: mostly 4 oversized positions and 3 revenge trades.',
+    );
+    expect(parts.filter((part) => 'tradeIds' in part).map((part) => part.text)).toEqual([
+      '5 impurities',
+      '4 oversized positions',
+      '3 revenge trades',
+    ]);
   });
 
-  it('leaves a lone impurity unbracketed', () => {
-    const spans = tiltSpans(day);
-    expect(spans.some((span) => span.startIndex <= 4 && span.endIndex >= 4)).toBe(false);
-  });
-
-  it('labels the worst of the history when it is on this day', () => {
-    const start = day.episodes[0]?.start ?? '';
-    expect(tiltSpans(day, { date: '2026-03-02', start })[0]?.worstOverall).toBe(true);
-    expect(tiltSpans(day, { date: '2026-03-03', start })[0]?.worstOverall).toBe(false);
-    // One episode is not "the worst of the day" — there is nothing to compare it with.
-    expect(tiltSpans(day)[0]?.worstOfDay).toBe(false);
+  it('never lands two identical phrases on the same words', () => {
+    const parts = sentenceParts({
+      text: '1 trade here, 1 trade there.',
+      links: [
+        { phrase: '1 trade', tradeIds: ['a'] },
+        { phrase: '1 trade', tradeIds: ['b'] },
+      ],
+    });
+    expect(parts).toEqual([
+      { text: '1 trade', tradeIds: ['a'], key: '0:1 trade' },
+      { text: ' here, ' },
+      { text: '1 trade', tradeIds: ['b'], key: '1:1 trade' },
+      { text: ' there.' },
+    ]);
   });
 });
