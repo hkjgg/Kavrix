@@ -397,16 +397,6 @@
   }
 }
 
-/* Revealed top to bottom — the Discipline Replay's timeline (Stage 5). */
-@keyframes kavrix-enter-drop {
-  from {
-    clip-path: inset(0 0 100% 0);
-  }
-  to {
-    clip-path: inset(0 0 0 0);
-  }
-}
-
 /* A disciplined week: dim like the rest, then resolving to bright gold. */
 @keyframes kavrix-enter-resolve {
   0% {
@@ -478,11 +468,6 @@
     animation: kavrix-enter-resolve var(--t, 900ms) ease-out var(--d, 0ms) 1 both;
   }
 
-  .enter-drop {
-    animation: kavrix-enter-drop var(--t, 1200ms) cubic-bezier(0.45, 0, 0.55, 1)
-      var(--d, 0ms) 1 both;
-  }
-
   /* Waiting in the wings: held on the first frame until the scene is seen. */
   .scene:not([data-inview])
     :is(
@@ -494,8 +479,7 @@
       .enter-sweep,
       .enter-engrave,
       .enter-wipe,
-      .enter-resolve,
-      .enter-drop
+      .enter-resolve
     ) {
     animation-play-state: paused;
   }
@@ -557,15 +541,138 @@
   animation: kavrix-enter-wipe 700ms cubic-bezier(0.45, 0, 0.55, 1) both;
 }
 
-/* The ledge each week of ingots stands on: a hairline catching the light in
-   the middle and falling away at both ends. */
-@utility vault-shelf {
+/* ---------------------------------------------------------------------------
+   The Vault, bullion pass — ingots, shelves and the Day Assay
+   --------------------------------------------------------------------------- */
+
+/* Hover or focus: the bar lifts 2px and one band of light crosses it. */
+.ingot-body {
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ingot-sheen {
+  opacity: 0;
+}
+
+@keyframes kavrix-ingot-sheen {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(96px);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @media (hover: hover) {
+    .vault-day:hover .ingot-body {
+      transform: translateY(-2px);
+    }
+
+    .vault-day:hover .ingot-sheen {
+      animation: kavrix-ingot-sheen 900ms cubic-bezier(0.45, 0, 0.55, 1) 1 both;
+    }
+  }
+
+  .vault-day:focus-visible .ingot-body {
+    transform: translateY(-2px);
+  }
+
+  .vault-day:focus-visible .ingot-sheen {
+    animation: kavrix-ingot-sheen 900ms cubic-bezier(0.45, 0, 0.55, 1) 1 both;
+  }
+}
+
+/* A month's first time on screen: one slow pass of light along the shelf.
+   Opacity 0 at rest, so without script or with reduced motion it is simply
+   not there. */
+.shelf-sweep {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0;
   background-image: linear-gradient(
-    90deg,
+    100deg,
     transparent 0%,
-    color-mix(in srgb, var(--gold) 26%, transparent) 18%,
-    color-mix(in srgb, var(--gold-light) 34%, transparent) 50%,
-    color-mix(in srgb, var(--gold) 26%, transparent) 82%,
+    transparent 38%,
+    color-mix(in srgb, var(--gold-light) 9%, transparent) 50%,
+    transparent 62%,
     transparent 100%
   );
+  background-size: 250% 100%;
+  background-repeat: no-repeat;
+  mix-blend-mode: screen;
+}
+
+@keyframes kavrix-shelf-sweep {
+  0% {
+    opacity: 0;
+    background-position: 130% 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    background-position: -30% 0;
+  }
+}
+
+@media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+  .enter-shelf-sweep {
+    animation: kavrix-shelf-sweep 1200ms cubic-bezier(0.45, 0, 0.55, 1) 150ms 1 both;
+  }
+
+  .scene:not([data-inview]) .enter-shelf-sweep {
+    animation-play-state: paused;
+  }
+}
+
+/* The Day Assay as a sheet on narrow screens: up from the bottom, 240 ms. */
+@keyframes kavrix-sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+@utility sheet-in {
+  animation: kavrix-sheet-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Chart tooltips: fade only. */
+@keyframes kavrix-tip-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@utility tip-in {
+  animation: kavrix-tip-in 120ms ease-out both;
+}
+
+/* A mark on the Day Assay chart is a link: the gold focus ring, drawn round
+   the dot rather than the SVG's bounding box. */
+.day-marker:focus-visible {
+  outline: none;
+}
+
+.day-marker:focus-visible circle:last-child {
+  stroke: var(--gold);
+  stroke-width: 2;
+}
+
+/* Reduced motion: the panel, the sheet and the tips simply appear. */
+@media (prefers-reduced-motion: reduce) {
+  .resolve-in,
+  .sheet-in,
+  .tip-in,
+  .veil-in {
+    animation: none;
+  }
 }

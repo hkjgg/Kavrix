@@ -341,8 +341,20 @@ with its geometry and timing in `components/viz/instrument.ts`:
    and its per-pillar breakdown beneath. Always labelled "Counterfactual, not a promise".)
 6. **Hallmark** — a unique 32 px radial glyph per trade encoding 6 dimensions: R result, risk%,
    duration, session, news proximity, SL compliance. Deterministic from trade data. Used in the Ledger.
-7. **VaultCalendar** — each day is a small ingot filled by daily P&L, engraved with the day's Karat;
-   months as vault shelves.
+7. **VaultCalendar** — each day is a cast ingot (`components/viz/Ingot.tsx`): a bar seen slightly
+   from above, a wide top face with the day's Karat struck into it (Instrument Serif, debossed) over
+   a bevelled front face. **Material = Karat**: the metal is the day's tier, one shared gradient per
+   tier (24K rich gold with a bright highlight → 22K gold → 18K champagne → 14K pale gold with a
+   bronze cast → 10K bronze → Raw Ore matte slate), so purity rises and falls across a month without
+   reading a number. **Assay strip = P&L**: a 2px strip under each bar, jade or oxblood, its length
+   against the month's largest day — the only jade or oxblood on the shelf. Each week stands on a
+   gold-deep hairline shelf with a faint reflection (≤ 8%); a no-trade day is a recessed slot; the
+   month's best and worst day carry a tiny hallmark. Months are headed `06 — June 2026` with the
+   month's average day Karat stamped beside it. Motion: one slow light sweep along a shelf the first
+   time it is seen, a 2px lift and one sheen pass on hover/focus; static under reduced motion.
+   A day opens the **Day Assay** (§6.11): a chart (running P&L, the running day Karat tarnishing
+   where impurities set it, USD news, session washes, gaps folded), the day in engine-built
+   chapters, and the day's Karat Gap receipt.
 8. **Constellation** — EAs as stars; force layout where distance = 1 − correlation; size = volume;
    brightness = Fineness.
 9. **AssayCertificate** — shareable bullion-bar card:
@@ -488,17 +500,18 @@ components/
   viz/                        AssayDial, GoldClock, PurityLine, Refinery,
                               Hallmark, VaultCalendar, Constellation, AssayCertificate
                               (+ pure geometry: dial.ts, instrument.ts, rings.ts, hallmark.ts,
-                              purity.ts)
+                              purity.ts, ingot.ts)
   assay/                      the Assay page: AssayInstrument (dial + PillarRings sub-dials),
                               scenes (incl. the Purity Line + What-if), Explain drawer
   vault/                      the Vault: view builder (shelves, ingots, keyboard), screen,
-                              Discipline Replay
+                              Day Assay (view, chart geometry, panel)
   ledger/                     the Ledger screen (client: filters, table, keyboard, export)
   dossier/                    the Trade Dossier: view builder, screen, price chart
   ui/                         primitives (Card, Label, Stat, Button, Table)
 lib/
   engine/                     trades, sessions, news, karat, gap, proof, fineness, correlation,
-                              confidence, baselines, edgemap, similar, counterfactual, replay, prop
+                              confidence, baselines, edgemap, similar, counterfactual, replay,
+                              dayStory, prop
   demo/                       deterministic generator (+ memoised Assay, Ledger rows, candles,
                               Vault)
   dates.ts                    UTC calendar words for day keys, without Intl — browser-safe
@@ -548,6 +561,8 @@ connector/                    KavrixConnector.mq5 + README
     Karat), hover detail, a month summary per shelf, one-tab-stop keyboard, `?day=` in the URL.
   - `05 — The Purity Line` on the Assay: equity lit by the rolling Karat, impurity stamps to
     the Dossier, What-if with the engine's six scenarios.
+  - **Vault redesign (2026-09-23):** bullion ingots (material = Karat, assay strip = P&L) and the
+    **Day Assay** replacing the Replay's text list — chart, engine-built chapters, day receipt.
 - [ ] 6 — Constellation (EA Health, Fineness, correlation)
   - **Monte Carlo drawdown band from the backtest** for EA Health (§7).
 - [ ] 7 — Wrapped + Assay Certificate export
@@ -1546,3 +1561,60 @@ Vault (manual-only fills) — it would be a second definition of a day; noted in
 
 **Left standing, for the product owner to call**
 `/styleguide` still exists (see Stage 4).
+
+### Vault redesign — bullion ingots and the Day Assay ✅ (2026-09-23)
+
+A redesign pass on the Vault, inside Stage 5. **No Karat, Gap or Replay formula changed** — the
+one engine addition is `lib/engine/dayStory.ts`, which only arranges numbers the Replay and the
+Gap already produce.
+
+**What exists now**
+- `lib/engine/dayStory.ts` — `dayStory({ day, trades, calendar, settings })` → the running day
+  Karat per trade (with its impurities), the running P&L in close order, the day's high-impact
+  USD releases, the Gap's receipt for the day (`attributeCost`, so it agrees with the Gap), and
+  **chapters** `{ id, kind, number, title, from, to, tradeIds, sentences: [{ text, links:
+  [{ phrase, tradeIds }] }] }`. `chapterRanges` is the pure structure underneath.
+- `components/viz/ingot.ts` + `Ingot.tsx` — the bar's geometry (rounded two-face silhouette,
+  reflection, strip), tier → metal, `assayStrip`; `IngotDefs` holds the six tier gradients, the
+  sheen, one clip, the reflection mask and the shelf gradients, once per page.
+- `components/vault/dayAssay.ts` (view + `sentenceParts`), `dayChart.ts` (D3 polylinear folded
+  time scale, step paths, bands, zoom window), `DayAssay.tsx` (the panel). `Replay.tsx` is gone.
+- `d3-scale` and `d3-shape` added (ISC) — used on `/vault` only.
+- New and rewritten Vitest cases (45 more than Stage 5’s 584): hand-checked `dayStory` for a clean day, a one-trade day and **25 June
+  2026** (tilt 12:20–12:47, recovery at 17:00; receipt $718.18 + $1,418.76 + $69.88 =
+  $2,206.82), plus every demo day covered once; chapter ranges; ingot geometry and strips; the
+  folded axis; the Vault view; render tests. **629 tests in total, all passing.**
+
+**Decisions taken**
+- **Chapters are rules, and there are five.** The open (before the first impurity), each tilt
+  (§6.11 episode, clean trades inside it included), recovery (after a tilt, to the next tilt or
+  the end), and the close (clean trades after the last slip). The brief's four leave one case
+  unnamed — impurities that never chain into a tilt — so it gets **The slip**. Every trade is in
+  exactly one chapter (asserted over all 65 demo days).
+- **Sentences are templates over engine numbers**: counts of trades, clock times the trades carry,
+  day Karats the Replay printed, sums of P&L and Gap cost. At most two a chapter; the impurity
+  list names the three largest kinds and says "mostly" when it left some out. A news phrase names
+  its release (`4 entries in the 12:30 USD news window`).
+- **Strips measure against the month, not the history.** A quiet month still shows its shape; the
+  month's largest day fills its lane.
+- **The Karat line tarnishes by trade**: each step is set by one trade and drawn in that trade's
+  state, over a slate band where impure trades were open. Never red — oxblood marks losing closes
+  only.
+- **Markers sit at the close on the P&L line; Karat steps at the entry**, because an impurity is
+  decided at entry and money at the close.
+- **Gaps longer than 45 minutes fold to a 14px break**; a release is drawn if it falls within an
+  hour of a trade.
+- **Esc is two-step inside the panel**: the first lets go of a highlight, the next closes. ← and →
+  inside the panel step to the nearest trading day; in the calendar an open Day Assay follows the
+  selection.
+- **Below 1280px the Day Assay is a bottom sheet** (backdrop, page scroll locked, focus on its
+  heading); beside the calendar it is sticky and focus stays on the day.
+
+**Lighthouse** (mobile, production build): `/demo` **94** · 100 · 100 · 100, `/vault` **93** · 100 ·
+100 · 100 (TBT 140 ms, CLS 0). `/vault?day=2026-06-25` desktop 100 · 100 · 100, CLS 0.
+
+**Verified in a real browser** (Playwright on Chromium): hover tooltip, tap opens the sheet on a
+375px touch viewport with no horizontal scroll, arrows and the panel's ← → move days, a phrase
+zooms and dims, hovering a mark lights its chapter, Esc twice restores then closes, the shelf
+sweep plays once per month, and under `prefers-reduced-motion` the page has no animations.
+

@@ -256,4 +256,5 @@ export * from './edgemap';
 export * from './similar';
 export * from './counterfactual';
 export * from './replay';
+export * from './dayStory';
 export * from './prop';
