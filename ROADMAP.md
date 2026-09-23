@@ -23,4 +23,7 @@ Everything here is **V2 or later**. Nothing on this list is built in V1
 
 ## Notes collected during V1
 
-_Nothing yet._
+- **Price bars for real accounts (Stage 4).** The Trade Dossier's chart draws the demo's own M1
+  path. The connector (§12) sends deals, SL/TP changes and the calendar — no prices — so a real
+  account's Dossier has no candles. Options: have the connector send M1 bars around each closed
+  position (`CopyRates`), or a market-data source. Until then the chart shows its empty state.

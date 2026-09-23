@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui';
+import type { NavKey } from './PrimaryNav';
 import { PrimaryNav } from './PrimaryNav';
 
 /**
@@ -17,6 +18,8 @@ export interface AppShellProps {
   /** e.g. `Last 30 days`. */
   periodLabel: string;
   demo?: boolean;
+  /** The surface this page belongs to, lit in the nav. Default the Assay. */
+  current?: NavKey;
   children: ReactNode;
 }
 
@@ -24,6 +27,7 @@ export function AppShell({
   accountLabel,
   periodLabel,
   demo = false,
+  current = 'assay',
   children,
 }: AppShellProps) {
   return (
@@ -39,7 +43,7 @@ export function AppShell({
               KAVRIX
             </Link>
 
-            <PrimaryNav className="hidden lg:block" />
+            <PrimaryNav current={current} className="hidden lg:block" />
 
             <div className="ml-auto flex items-center gap-5">
               <div className="hidden text-right sm:block">
@@ -62,7 +66,7 @@ export function AppShell({
             </div>
           </div>
 
-          <PrimaryNav className="-mx-4 overflow-x-auto px-4 pb-3 lg:hidden" />
+          <PrimaryNav current={current} className="-mx-4 overflow-x-auto px-4 pb-3 lg:hidden" />
         </div>
       </header>
 

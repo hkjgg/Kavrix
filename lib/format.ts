@@ -146,3 +146,51 @@ export function formatKarat(
   const zero = Number(abs) === 0;
   return `${signPrefix(negative, zero, signed)}${abs}K`;
 }
+
+export interface FormatDurationOptions {
+  /** Units shown, largest first. Default 2 — `1h 24m`, never `1h 24m 12s`. */
+  units?: number;
+}
+
+/**
+ * Holding time: `formatDuration(84)` → `"1m"`, `formatDuration(5040)` →
+ * `"1h 24m"`, `formatDuration(183_600)` → `"2d 3h"`.
+ *
+ * Truncated, not rounded: a trade held 59 minutes was not held an hour.
+ * Anything under a minute reads in seconds.
+ */
+export function formatDuration(
+  seconds: number,
+  options: FormatDurationOptions = {},
+): string {
+  const { units = 2 } = options;
+  if (!Number.isFinite(seconds) || seconds < 0) return EM_DASH;
+
+  const whole = Math.floor(seconds);
+  if (whole < 60) return `${whole}s`;
+
+  const parts: Array<[number, string]> = [
+    [Math.floor(whole / 86_400), 'd'],
+    [Math.floor((whole % 86_400) / 3_600), 'h'],
+    [Math.floor((whole % 3_600) / 60), 'm'],
+  ];
+  const first = parts.findIndex(([value]) => value > 0);
+  return parts
+    .slice(first, first + units)
+    .filter(([value], index) => index === 0 || value > 0)
+    .map(([value, unit]) => `${value}${unit}`)
+    .join(' ');
+}
+
+/** Lots, always two decimals: `formatLots(0.5)` → `"0.50"`. */
+export function formatLots(value: number): string {
+  if (!Number.isFinite(value)) return EM_DASH;
+  return Math.abs(value).toFixed(2);
+}
+
+/** A price at the symbol's own precision: `formatPrice(2412.3, 2)` → `"2412.30"`. */
+export function formatPrice(value: number, digits = 2): string {
+  if (!Number.isFinite(value)) return EM_DASH;
+  const { negative, abs } = splitSign(value, digits);
+  return `${negative ? MINUS : ''}${abs}`;
+}
