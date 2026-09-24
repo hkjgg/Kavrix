@@ -676,3 +676,141 @@
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Stage 7 — Wrapped and the Assay Certificate
+
+   Wrapped shows one chapter at a time (`data-inactive` on the rest); showing a
+   chapter is what starts its `enter-*` reveal, since a CSS animation begins
+   when its element is displayed. Without JavaScript nothing can turn the
+   page, so every chapter is shown, one after another, and the controls go.
+   --------------------------------------------------------------------------- */
+
+.wrapped-chapter {
+  display: flex;
+  flex-direction: column;
+  /* The viewport, less the header, the progress line and the controls. */
+  min-height: calc(100dvh - 64px - 1px - 64px);
+}
+
+.wrapped-chapter[data-inactive] {
+  display: none;
+}
+
+.wrapped-stage {
+  touch-action: pan-y;
+  cursor: default;
+}
+
+.wrapped-progress-fill {
+  transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (scripting: none) {
+  .wrapped-chapter[data-inactive] {
+    display: flex;
+  }
+
+  .wrapped-chapter + .wrapped-chapter {
+    border-top: 1px solid var(--line);
+  }
+
+  .wrapped-controls,
+  .wrapped-progress {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wrapped-progress-fill {
+    transition: none;
+  }
+}
+
+/* The certificate on the page: the export-size canvas, scaled to its box by
+   one transform. `tan(atan2(a, b))` is a / b as a plain number — the ratio of
+   the box's width to the canvas's 1080px, with no script. A transform never
+   counts as layout shift. */
+.cert-frame {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  container-type: inline-size;
+  border-radius: 6px;
+}
+
+.cert-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  transform: scale(tan(atan2(100cqw, 1080px)));
+}
+
+@keyframes kavrix-cert-rise {
+  from {
+    opacity: 0;
+    transform: translateY(90px);
+    filter: brightness(0.25);
+  }
+  60% {
+    filter: brightness(0.8);
+  }
+}
+
+@keyframes kavrix-cert-sweep {
+  from {
+    background-position: 160% 0;
+    opacity: 1;
+  }
+  to {
+    background-position: -60% 0;
+    opacity: 1;
+  }
+}
+
+@keyframes kavrix-cert-stamp {
+  0% {
+    opacity: 0;
+    transform: scale(1.18);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(0.985);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* At rest the sweep is invisible; it only exists as a single pass. */
+.cert-sweep {
+  opacity: 0;
+  pointer-events: none;
+  background-image: linear-gradient(
+    105deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(255, 248, 230, 0.55) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: 250% 100%;
+  background-repeat: no-repeat;
+  mix-blend-mode: soft-light;
+}
+
+@media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+  .cert-bar {
+    animation: kavrix-cert-rise 1100ms cubic-bezier(0.16, 1, 0.3, 1) 150ms 1 both;
+  }
+
+  .cert-sweep {
+    animation: kavrix-cert-sweep 1300ms cubic-bezier(0.45, 0, 0.55, 1) 1100ms 1 both;
+  }
+
+  .cert-stamp {
+    transform-origin: 50% 50%;
+    animation: kavrix-cert-stamp 520ms cubic-bezier(0.34, 1.4, 0.64, 1) 2200ms 1 both;
+  }
+}

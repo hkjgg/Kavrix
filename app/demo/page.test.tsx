@@ -155,8 +155,10 @@ describe('/demo', () => {
     expect((markup.match(/data-stamp="/g) ?? []).length).toBe(stamps.length);
   });
 
-  it('links the Ledger and leaves the surfaces that do not exist yet disabled rather than broken', () => {
-    expect(markup).toContain('aria-disabled="true"');
+  it('links every surface, Wrapped included, and lights only the Assay', () => {
+    expect(markup).not.toContain('aria-disabled="true"');
+    expect(markup).toContain('href="/wrapped"');
+    expect(markup).not.toMatch(/aria-current="page"[^>]*href="\/wrapped"/);
     expect(markup).toMatch(/aria-current="page"[^>]*href="\/demo"/);
     expect(markup).toContain('href="/ledger"');
     expect(markup).not.toMatch(/aria-current="page"[^>]*href="\/ledger"/);

@@ -34,6 +34,15 @@ export function useSceneInView(): boolean {
   return useContext(SceneContext);
 }
 
+/**
+ * Sets "seen" for everything inside, without an observer — for surfaces that
+ * decide for themselves when a part of the page is showing (Wrapped plays one
+ * chapter at a time, and its counters count when their chapter is shown).
+ */
+export function SceneInView({ inView, children }: { inView: boolean; children: ReactNode }) {
+  return <SceneContext.Provider value={inView}>{children}</SceneContext.Provider>;
+}
+
 export interface SceneProps extends HTMLAttributes<HTMLElement> {
   children: ReactNode;
 }

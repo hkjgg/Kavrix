@@ -145,7 +145,7 @@ describe('/vault', () => {
     expect(markup).toMatch(/aria-current="page"[^>]*href="\/vault"/);
     expect(markup).toContain('href="/ledger"');
     expect(markup).toContain('href="/constellation"');
-    expect(markup).toMatch(/aria-disabled="true" title="Wrapped arrives in Stage \d"/);
+    expect(markup).toContain('href="/wrapped"');
     expect(markup).toContain('Demo data');
   });
 });
