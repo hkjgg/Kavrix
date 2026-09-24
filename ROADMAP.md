@@ -51,9 +51,31 @@ Everything here is **V2 or later**. Nothing on this list is built in V1
   the story (the reveal as frames, not a screen recording); share sheets that post the PNG
   straight to a network; a "compare two months" chapter. Each needs no new metric — the monthly
   `WrappedResult`s already carry the numbers.
-- **Certificate serials in `certificates` (Stage 7 → 8).** The serial is a deterministic hash of
-  account and month; Stage 8 stores it, enforces uniqueness, and lets `/verify/[serial]` resolve
-  real accounts. A revocation flag (a month re-assayed after late deals) belongs there too.
+- **Certificate revocation (Stage 7 → 8).** Stage 8 stores real serials in `certificates` and
+  `/verify/[serial]` resolves them. Still open: a revocation flag for a month re-assayed after
+  late deals, and a fallback when two accounts' serials collide (one in a million per month).
 - **Certificate variants (Stage 7).** A light "paper" edition for print, and a square 1080×1080
   crop. Both would be new layouts of the same `AssayCertificate` tree, never new figures — the
   certificate stays Karat, tier, hallmarks, period and trade count.
+- **Broker offset in the §12 payload (Stage 8).** The connector knows its server's UTC offset but
+  §12's `account` has no field for it, so the trader copies it from the Experts log into
+  Settings. An optional `account.serverUtcOffsetHours` would remove that step; per-date offsets
+  (DST) would also fix history converted with today's offset.
+- **Balance operations from the connector (Stage 8).** Equity at entry is the balance walked back
+  through later closes; deposits and withdrawals are not in the §12 feed, so they shift it.
+  Sending `DEAL_TYPE_BALANCE` deals as their own list would make it exact.
+- **Excursion and candles for real accounts (Stage 8).** MFE/MAE are stored as the best and worst
+  fill. The connector could send each closed position's M1 high/low (`CopyRates`) — true MFE/MAE —
+  and the bars the Dossier's chart needs.
+- **Account switcher (Stage 8).** A trader with two linked MT5 accounts sees the most recently
+  synced one; Settings lists both. A switcher in the header (`?account=`) is the next step.
+- **Netting accounts (Stage 8).** `DEAL_ENTRY_INOUT` reversals are skipped by the connector; a
+  netting account needs positions split at each reversal.
+- **Background assay (Stage 8).** The engine runs inside each ingest request; a first sync of
+  years of an EA is many batches each re-assaying the whole account. A queue (or assaying only
+  the last batch of a sync) would keep requests short at that scale.
+- **Stored snapshots on the surfaces (Stage 8).** Pages compute the live Assay from stored trades;
+  `karat_snapshots` could draw a Karat history chart without running the engine, and serve
+  the AI cache in Stage 9.
+- **Token rotation and scopes (Stage 8).** Tokens are revoked and re-issued by hand; an expiry, a
+  "rotate" that keeps the account binding, and a read-only status token are later ideas.
