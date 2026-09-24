@@ -1,18 +1,18 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { AppShell } from '@/components/app/AppShell';
+import { AccountShell } from '@/components/app/AccountShell';
 import { DossierScreen } from '@/components/dossier/DossierScreen';
 import { buildDossier } from '@/components/dossier/dossier';
-import { getDemoDossierSources } from '@/lib/demo/dossier';
+import { loadAccountSurface } from '@/lib/account/surface';
 import { parseLedgerQuery } from '@/lib/ledger/query';
+import { APP_ROUTES } from '@/lib/routes';
+import { accountDigits, buildDossierSources, buildLedger } from '@/lib/views/account';
 
 /**
- * `/trade/[id]` — the Trade Dossier (CLAUDE.md §4, §17 Stage 4).
- *
- * Rendered on request, because the Ledger's filter travels in the query
- * string and decides the Dossier's previous and next. Everything it reads is
- * memoised for the life of the process, so a request costs one Similar
- * Trades search and one fold of M1 bars into candles.
+ * `/trade/[id]` — one of the trader's own trades (CLAUDE.md §4). The connector
+ * sends deals, not prices, so a real account's Dossier has no candles yet
+ * (ROADMAP.md): the chart shows its empty state, and everything else is the
+ * engine's, exactly as in the demo.
  */
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -24,20 +24,28 @@ interface DossierPageProps {
 
 export async function generateMetadata({ params }: DossierPageProps): Promise<Metadata> {
   const { id } = await params;
-  return {
-    title: `${decodeURIComponent(id)} · Trade Dossier — Kavrix demo`,
-    description: 'One trade on the demo account: its Hallmark, the market around it, what its impurities cost, and the trades that looked like it.',
-  };
+  return { title: `${decodeURIComponent(id)} · Trade Dossier — Kavrix` };
 }
 
+export const dynamic = 'force-dynamic';
+
 export default async function DossierPage({ params, searchParams }: DossierPageProps) {
-  const [{ id }, search] = await Promise.all([params, searchParams]);
-  const view = buildDossier(decodeURIComponent(id), getDemoDossierSources(), parseLedgerQuery(search));
+  const [{ id }, search, surface] = await Promise.all([params, searchParams, loadAccountSurface()]);
+  if (surface.kind !== 'ready') {
+    return <AccountShell surface={surface} current="ledger" periodLabel="All history" />;
+  }
+  const { rows } = buildLedger(surface.assay, surface.dataset);
+  const sources = buildDossierSources(surface.assay, surface.dataset, rows, {
+    bars: null,
+    digits: accountDigits(surface.dataset),
+    routes: APP_ROUTES,
+  });
+  const view = buildDossier(decodeURIComponent(id), sources, parseLedgerQuery(search));
   if (view === null) notFound();
 
   return (
-    <AppShell accountLabel="XAUUSD · Demo" periodLabel="Last 90 days" current="ledger" demo>
+    <AccountShell surface={surface} current="ledger" periodLabel="All history">
       <DossierScreen view={view} />
-    </AppShell>
+    </AccountShell>
   );
 }

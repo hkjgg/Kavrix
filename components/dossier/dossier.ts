@@ -52,6 +52,8 @@ import { rowHallmark } from '@/lib/ledger/types';
 import { hallmarkInputOf } from '@/lib/ledger/rows';
 import type { ExplainConfidence, ExplainTone } from '@/components/assay/explain-types';
 import { explainConfidence, formatUtc } from '@/components/assay/explain';
+import type { SurfaceRoutes } from '@/lib/routes';
+import { DEMO_ROUTES } from '@/lib/routes';
 
 /* -------------------------------------------------------------------------
  * Shapes
@@ -184,6 +186,8 @@ export interface DossierSources {
   /** Minute bars for the chart, when the account has them. */
   bars: MinuteBars | null;
   digits: number;
+  /** Where the links go: the demo's surfaces or a real account's. Default the demo. */
+  routes?: SurfaceRoutes;
 }
 
 /* -------------------------------------------------------------------------
@@ -420,7 +424,7 @@ function similarOf(
     return [
       {
         id: row.id,
-        href: dossierHref(row.id, query),
+        href: dossierHref(row.id, query, sources.routes),
         hallmark: rowHallmark(row, assay.settings.riskLimitPercent),
         time: formatUtc(row.openTime),
         source: row.source,
@@ -584,6 +588,7 @@ function navOf(
   rows: readonly LedgerRow[],
   query: LedgerQuery,
   asOfMs: number,
+  routes: SurfaceRoutes,
 ): DossierNav {
   let effective = query;
   let ordered = applyLedgerQuery(rows, query, { asOfMs });
@@ -598,12 +603,12 @@ function navOf(
   }
 
   const link = (row: LedgerRow | null): DossierNavLink | null =>
-    row === null ? null : { href: dossierHref(row.id, effective), label: row.id, time: formatUtc(row.openTime) };
+    row === null ? null : { href: dossierHref(row.id, effective, routes), label: row.id, time: formatUtc(row.openTime) };
 
   const filtered = serializeLedgerQuery(effective, { withoutPage: true }) !== '';
   return {
     back: withQuery(
-      '/ledger',
+      routes.ledger,
       serializeLedgerQuery({ ...effective, page: pageOfIndex(Math.max(adjacent.index, 0)) }),
     ),
     previous: link(adjacent.previous),
@@ -722,6 +727,6 @@ export function buildDossier(
       : 'An EA trade. The Karat Score and the Karat Gap cover manual trading only (§6); this trade counts towards its EA’s health instead.',
     similar: similarOf(trade, sources, rowsById, query),
     chart: chartOf(trade, raw, sources),
-    nav: navOf(trade.id, sources.rows, query, asOfMs),
+    nav: navOf(trade.id, sources.rows, query, asOfMs, sources.routes ?? DEMO_ROUTES),
   };
 }

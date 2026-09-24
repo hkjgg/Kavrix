@@ -13,18 +13,23 @@
     "test:watch": "vitest",
     "lighthouse": "lighthouse http://localhost:3000/demo --preset=desktop --only-categories=performance,accessibility,best-practices,seo --chrome-flags=\"--headless=new --no-sandbox\"",
     "demo:report": "tsx scripts/demo-report.ts",
-    "engine:report": "tsx scripts/engine-report.ts"
+    "engine:report": "tsx scripts/engine-report.ts",
+    "db:types": "tsx scripts/db-types.ts"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.1",
     "d3-force": "^3.0.0",
     "d3-scale": "^4.0.2",
     "d3-shape": "^3.2.0",
     "lightweight-charts": "^5.2.1",
     "next": "16.3.5",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@tailwindcss/postcss": "4.3.3",
     "@types/d3-force": "^3.0.10",
     "@types/d3-scale": "^4.0.9",

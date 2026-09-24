@@ -3,9 +3,13 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { CertificateCard } from '@/components/wrapped/CertificateCard';
 import { Badge } from '@/components/ui';
+import { certificateAlt } from '@/components/viz/certificate';
+import type { CertificateData } from '@/components/viz/certificate';
 import { demoMonthForSerial, getDemoWrappedMonths, getDemoWrappedView } from '@/lib/demo/wrapped';
 import { certificateSerial } from '@/lib/engine';
 import { getDemoDataset } from '@/lib/demo/assay';
+import { verifyCertificate } from '@/lib/account/verify';
+import { monthLabel } from '@/lib/dates';
 
 /**
  * `/verify/[serial]` — what a shared Assay Certificate stands for (CLAUDE.md
@@ -13,11 +17,10 @@ import { getDemoDataset } from '@/lib/demo/assay';
  * itself shows: Karat, tier, hallmarks, period and trade count. Never money,
  * R totals or balances.
  *
- * Until Stage 8 stores real accounts' serials in `certificates`, the serials
- * it knows are the demo's, and it says so.
+ * The demo's serials are prerendered. Any other serial is looked up in
+ * `certificates` through `verify_certificate`, which returns only those same
+ * printed fields — never the account behind them.
  */
-
-export const dynamicParams = false;
 
 export function generateStaticParams(): { serial: string }[] {
   const { account } = getDemoDataset();
@@ -31,14 +34,33 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   return { title: `Assay Certificate No. ${serial} — Kavrix`, description: 'Verify a Kavrix Assay Certificate.' };
 }
 
+interface Resolved {
+  data: CertificateData;
+  alt: string;
+  /** `August 2026`. */
+  label: string;
+  /** The demo's Wrapped for the month. A real trader's Wrapped is private, so `null`. */
+  wrappedHref: string | null;
+}
+
+async function resolve(serial: string): Promise<Resolved | null> {
+  const month = demoMonthForSerial(serial);
+  if (month !== null) {
+    const view = getDemoWrappedView(month);
+    const certificate = view.chapters.find((chapter) => chapter.kind === 'certificate');
+    if (certificate?.kind !== 'certificate') return null;
+    return { data: certificate.data, alt: certificate.alt, label: view.label, wrappedHref: view.href };
+  }
+  const verified = await verifyCertificate(serial);
+  if (verified === null) return null;
+  return { data: verified.data, alt: certificateAlt(verified.data), label: monthLabel(verified.month), wrappedHref: null };
+}
+
 export default async function VerifyPage({ params }: { params: Params }) {
   const { serial } = await params;
-  const month = demoMonthForSerial(serial);
-  if (month === null) notFound();
-  const view = getDemoWrappedView(month);
-  const certificate = view.chapters.find((chapter) => chapter.kind === 'certificate');
-  if (certificate?.kind !== 'certificate') notFound();
-  const { data } = certificate;
+  const resolved = await resolve(decodeURIComponent(serial));
+  if (resolved === null) notFound();
+  const { data } = resolved;
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-[1080px] flex-col gap-12 px-4 py-14 sm:px-8 lg:flex-row lg:items-center lg:gap-16">
@@ -53,7 +75,7 @@ export default async function VerifyPage({ params }: { params: Params }) {
           <dd className="text-gold">{data.karat.toFixed(1)}K · {data.tier}</dd>
           <dt className="text-[10px] uppercase tracking-[2px] text-text-3">Period</dt>
           <dd className="text-text-2">
-            {view.label} · {data.period}
+            {resolved.label} · {data.period}
             {data.partial ? ' · month to date' : ''}
           </dd>
           <dt className="text-[10px] uppercase tracking-[2px] text-text-3">Trades</dt>
@@ -70,12 +92,19 @@ export default async function VerifyPage({ params }: { params: Params }) {
             </p>
           </div>
         ) : null}
-        <Link href={view.href} className="w-fit text-[11px] font-medium uppercase tracking-[2px] text-gold hover:text-gold-light">
-          See the month’s Wrapped →
-        </Link>
+        {resolved.wrappedHref !== null ? (
+          <Link href={resolved.wrappedHref} className="w-fit text-[11px] font-medium uppercase tracking-[2px] text-gold hover:text-gold-light">
+            See the month’s Wrapped →
+          </Link>
+        ) : (
+          <p className="text-sm leading-relaxed text-text-2">
+            Issued by Kavrix from the trader&rsquo;s own MetaTrader 5 history. The certificate carries its Karat, tier, period
+            and trade count — never money, never R, never the account.
+          </p>
+        )}
       </div>
       <div className="w-full max-w-[520px]">
-        <CertificateCard data={data} alt={certificate.alt} idPrefix={`verify-${data.serial}`} />
+        <CertificateCard data={data} alt={resolved.alt} idPrefix={`verify-${data.serial}`} />
       </div>
     </main>
   );

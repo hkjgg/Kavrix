@@ -4,7 +4,8 @@ import { cn } from '@/lib/cn';
 import { CountUp } from '@/components/ui/CountUp';
 import { AssayDial } from '@/components/viz/AssayDial';
 import { STAR_STYLES } from '@/components/viz/constellation';
-import { certificateHref } from '@/components/viz/certificate';
+import type { Surface } from '@/lib/routes';
+import { routesFor } from '@/lib/routes';
 import { CertificateActions } from './CertificateActions';
 import { CertificateCard } from './CertificateCard';
 import type {
@@ -537,12 +538,12 @@ function ProofChapter({ chapter, headingId }: { chapter: ProofChapterView; headi
 
 /* 07 — Your EAs ------------------------------------------------------------ */
 
-function EasChapter({ chapter, headingId }: { chapter: EasChapterView; headingId: string }) {
+function EasChapter({ chapter, headingId, surface }: { chapter: EasChapterView; headingId: string; surface: Surface }) {
   return (
     <div className="grid w-full gap-12 lg:grid-cols-2 lg:items-center">
       <ChapterText chapter={chapter} headingId={headingId}>
         <Link
-          href="/constellation"
+          href={routesFor(surface).constellation}
           className="enter-fade mt-8 inline-flex w-fit items-center gap-2 rounded-full border border-line px-4 py-2 text-[11px] font-medium uppercase tracking-[2px] text-text-2 transition-colors hover:border-gold hover:text-gold"
           style={beat(1100)}
         >
@@ -640,11 +641,13 @@ function CertificateChapter({
   headingId,
   month,
   href,
+  surface,
 }: {
   chapter: CertificateChapterView;
   headingId: string;
   month: string;
   href: string;
+  surface: Surface;
 }) {
   return (
     <div className="grid w-full gap-12 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-center">
@@ -653,8 +656,8 @@ function CertificateChapter({
           {chapter.data.legend}
         </p>
         <CertificateActions
-          postHref={certificateHref(month, 'post')}
-          storyHref={certificateHref(month, 'story')}
+          postHref={routesFor(surface).certificate(month, 'post')}
+          storyHref={routesFor(surface).certificate(month, 'story')}
           serial={chapter.data.serial}
           shareHref={href}
         />
@@ -679,11 +682,13 @@ export function WrappedChapter({
   headingId,
   month,
   href,
+  surface = 'demo',
 }: {
   chapter: WrappedChapterView;
   headingId: string;
   month: string;
   href: string;
+  surface?: Surface;
 }) {
   switch (chapter.kind) {
     case 'karat':
@@ -699,9 +704,9 @@ export function WrappedChapter({
     case 'proof':
       return <ProofChapter chapter={chapter} headingId={headingId} />;
     case 'eas':
-      return <EasChapter chapter={chapter} headingId={headingId} />;
+      return <EasChapter chapter={chapter} headingId={headingId} surface={surface} />;
     case 'certificate':
-      return <CertificateChapter chapter={chapter} headingId={headingId} month={month} href={href} />;
+      return <CertificateChapter chapter={chapter} headingId={headingId} month={month} href={href} surface={surface} />;
   }
 }
 

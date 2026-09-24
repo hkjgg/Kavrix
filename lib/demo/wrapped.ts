@@ -9,20 +9,10 @@
  * `asOf` is the end of the demo window, never the clock (see `assay.ts`).
  */
 
-import { buildWrappedView } from '@/components/wrapped/wrapped';
 import type { WrappedView } from '@/components/wrapped/wrapped';
 import type { MonthKey, WrappedResult } from '@/lib/engine';
-import {
-  SESSIONS,
-  buildWrapped,
-  certificateSerial,
-  defaultWrappedMonth,
-  isMonthComplete,
-  isMonthKey,
-  monthAsOf,
-  runEngine,
-  wrappedMonths,
-} from '@/lib/engine';
+import { certificateSerial, defaultWrappedMonth, isMonthKey, wrappedMonths } from '@/lib/engine';
+import { wrappedForMonth, wrappedView } from '@/lib/views/account';
 import { getDemoAssay, getDemoDataset } from './assay';
 import { DEMO_END_MS } from './generate';
 
@@ -50,20 +40,7 @@ export function getDemoWrapped(month: MonthKey): WrappedResult {
   if (hit !== undefined) return hit;
   if (!isDemoMonth(month)) throw new RangeError(`no demo month ${month}`);
 
-  const data = getDemoDataset();
-  const result = runEngine(
-    {
-      account: data.account,
-      trades: data.trades,
-      modifications: data.modifications,
-      calendar: data.calendar,
-      eas: data.eas,
-      symbolInfo: data.symbolInfo,
-    },
-    {},
-    monthAsOf(month, DEMO_END_MS),
-  );
-  const wrapped = buildWrapped({ month, result, calendar: data.calendar, demo: true });
+  const wrapped = wrappedForMonth(month, getDemoDataset(), {}, DEMO_END_MS, true);
   cache.set(month, wrapped);
   return wrapped;
 }
@@ -74,12 +51,7 @@ const views = new Map<MonthKey, WrappedView>();
 export function getDemoWrappedView(month: MonthKey): WrappedView {
   const hit = views.get(month);
   if (hit !== undefined) return hit;
-  const view = buildWrappedView({
-    wrapped: getDemoWrapped(month),
-    months: getDemoWrappedMonths().map((entry) => ({ month: entry, partial: !isMonthComplete(entry, DEMO_END_MS) })),
-    currency: getDemoDataset().account.currency,
-    sessions: SESSIONS,
-  });
+  const view = wrappedView(getDemoWrapped(month), getDemoWrappedMonths(), DEMO_END_MS, getDemoDataset().account.currency);
   views.set(month, view);
   return view;
 }

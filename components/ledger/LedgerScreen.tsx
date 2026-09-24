@@ -49,6 +49,7 @@ import { unpackLedgerRows } from '@/lib/ledger/pack';
 import { summarizeRows } from '@/lib/ledger/summary';
 import { rowHallmark } from '@/lib/ledger/types';
 import { useLocationSearch } from './useLocationSearch';
+import { useRoutes } from '@/components/app/SurfaceContext';
 
 /**
  * The Ledger (CLAUDE.md §4, §17 Stage 4) — every closed trade, newest first.
@@ -173,6 +174,7 @@ export function LedgerScreen({
   hasOffSession,
 }: LedgerScreenProps) {
   const router = useRouter();
+  const routes = useRoutes();
   const rows = useMemo(() => unpackLedgerRows(packed), [packed]);
   const [search, replaceSearch] = useLocationSearch();
   const query = useMemo(() => parseLedgerQuery(search), [search]);
@@ -286,11 +288,11 @@ export function LedgerScreen({
           break;
         case 'open': {
           const row = filtered[action.index];
-          if (row !== undefined) router.push(dossierHref(row.id, query));
+          if (row !== undefined) router.push(dossierHref(row.id, query, routes));
           break;
         }
         case 'open-match':
-          router.push(dossierHref(action.id, query));
+          router.push(dossierHref(action.id, query, routes));
           break;
         case 'focus-search':
           searchRef.current?.focus();
@@ -309,7 +311,7 @@ export function LedgerScreen({
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [dialogOpen, filtered, focusTable, openHelp, query, router, select, selectedIndex, singleMatch, update]);
+  }, [dialogOpen, filtered, focusTable, openHelp, query, router, routes, select, selectedIndex, singleMatch, update]);
 
   const exportCsv = useCallback(() => {
     const blob = new Blob([ledgerCsv(filtered)], { type: 'text/csv;charset=utf-8' });
@@ -460,7 +462,7 @@ export function LedgerScreen({
         ) : singleMatch !== null ? (
           <>
             1 match ·{' '}
-            <Link prefetch={false} href={dossierHref(singleMatch.id, query)} className="text-gold underline decoration-gold/40 underline-offset-4 hover:decoration-gold">
+            <Link prefetch={false} href={dossierHref(singleMatch.id, query, routes)} className="text-gold underline decoration-gold/40 underline-offset-4 hover:decoration-gold">
               Enter opens {singleMatch.id}
             </Link>
           </>
@@ -574,7 +576,7 @@ export function LedgerScreen({
               ) : (
                 visible.map((row) => {
                   const selected = row.id === selectedId;
-                  const href = dossierHref(row.id, query);
+                  const href = dossierHref(row.id, query, routes);
                   return (
                     <tr
                       key={row.id}

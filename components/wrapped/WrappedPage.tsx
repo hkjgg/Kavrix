@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui';
 import { WrappedChapter } from './WrappedChapters';
 import { WrappedStory } from './WrappedStory';
 import type { WrappedView } from './wrapped';
+import { routesFor } from '@/lib/routes';
 
 /**
  * `/wrapped` — a month of discipline, told in chapters (CLAUDE.md §4, §17
@@ -11,8 +12,6 @@ import type { WrappedView } from './wrapped';
  * leaves the application shell for a dark stage, keeps only the wordmark, the
  * months, the permanent "Demo data" badge and a way out.
  */
-
-const EXIT_HREF = '/demo';
 
 function MonthNav({ view, className }: { view: WrappedView; className?: string }) {
   return (
@@ -40,6 +39,7 @@ function MonthNav({ view, className }: { view: WrappedView; className?: string }
 }
 
 export function WrappedPage({ view, demo }: { view: WrappedView; demo: boolean }) {
+  const home = routesFor(view.surface).assay;
   const chapters = view.chapters.map((chapter) => ({
     id: `chapter-${chapter.kind}`,
     number: chapter.number,
@@ -51,7 +51,7 @@ export function WrappedPage({ view, demo }: { view: WrappedView; demo: boolean }
     <div className="wrapped flex min-h-dvh flex-col bg-bg">
       <header className="border-b border-line bg-bg">
         <div className="mx-auto flex h-16 w-full max-w-[1280px] items-center gap-4 px-4 sm:gap-6 sm:px-8">
-          <Link href="/demo" className="sheen shrink-0 font-serif text-xl leading-none tracking-[0.42em]" aria-label="Kavrix — the Assay">
+          <Link href={home} className="sheen shrink-0 font-serif text-xl leading-none tracking-[0.42em]" aria-label="Kavrix — the Assay">
             KAVRIX
           </Link>
           <h1 className="hidden text-[11px] font-medium uppercase tracking-[3px] text-text-3 md:block">
@@ -67,7 +67,7 @@ export function WrappedPage({ view, demo }: { view: WrappedView; demo: boolean }
           ) : null}
           <span className="ml-auto md:hidden" />
           <Link
-            href={EXIT_HREF}
+            href={home}
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line text-text-2 transition-colors hover:border-gold hover:text-gold"
             data-wrapped-exit=""
             aria-label="Leave Wrapped (Esc)"
@@ -94,7 +94,7 @@ export function WrappedPage({ view, demo }: { view: WrappedView; demo: boolean }
             {view.label} holds {view.tradeCount} manual {view.tradeCount === 1 ? 'trade' : 'trades'}. A month is assayed from{' '}
             {view.minimumTrades}, so there is no story to tell yet.
           </p>
-          <Link href={EXIT_HREF} className="text-[11px] font-medium uppercase tracking-[2px] text-gold hover:text-gold-light">
+          <Link href={home} className="text-[11px] font-medium uppercase tracking-[2px] text-gold hover:text-gold-light">
             Back to the Assay
           </Link>
         </main>
@@ -112,7 +112,7 @@ export function WrappedPage({ view, demo }: { view: WrappedView; demo: boolean }
           <p className="sr-only">
             {view.label}, {view.periodText}. {view.chapters.length} chapters.
           </p>
-          <WrappedStory chapters={chapters} exitHref={EXIT_HREF}>
+          <WrappedStory chapters={chapters} exitHref={home}>
             {view.chapters.map((chapter, index) => (
               <div key={chapter.kind} className="mx-auto flex w-full max-w-[1280px] flex-1 items-center px-4 py-12 sm:px-8 lg:py-16">
                 <WrappedChapter
@@ -120,6 +120,7 @@ export function WrappedPage({ view, demo }: { view: WrappedView; demo: boolean }
                   headingId={chapters[index]?.headingId ?? `wrapped-${chapter.kind}-heading`}
                   month={view.month}
                   href={view.href}
+                  surface={view.surface}
                 />
               </div>
             ))}

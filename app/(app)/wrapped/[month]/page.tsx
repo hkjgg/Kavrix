@@ -1,32 +1,26 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { WrappedPage } from '@/components/wrapped/WrappedPage';
-import { getDemoWrappedMonths, getDemoWrappedView, isDemoMonth } from '@/lib/demo/wrapped';
+import { loadAccountWrapped } from '@/lib/account/wrapped';
 import { monthLabel } from '@/lib/dates';
+import { isMonthKey } from '@/lib/engine';
 
-/**
- * `/wrapped/YYYY-MM` — one month's Wrapped (CLAUDE.md §17 Stage 7).
- * Every month of the demo history is prerendered; any other month is a 404.
- */
-
-export const dynamicParams = false;
-
-export function generateStaticParams(): { month: string }[] {
-  return getDemoWrappedMonths().map((month) => ({ month }));
-}
+/** `/wrapped/YYYY-MM` — one month of the trader's own Wrapped. */
 
 type Params = Promise<{ month: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { month } = await params;
-  return {
-    title: `Wrapped · ${isDemoMonth(month) ? monthLabel(month) : 'Not found'} — Kavrix demo`,
-    description: 'A month of XAUUSD discipline in chapters, ending in the Assay Certificate. Demo data, deterministic seed.',
-  };
+  return { title: `Wrapped · ${isMonthKey(month) ? monthLabel(month) : 'Not found'} — Kavrix` };
 }
+
+export const dynamic = 'force-dynamic';
 
 export default async function WrappedMonthPage({ params }: { params: Params }) {
   const { month } = await params;
-  if (!isDemoMonth(month)) notFound();
-  return <WrappedPage view={getDemoWrappedView(month)} demo />;
+  if (!isMonthKey(month)) notFound();
+  const result = await loadAccountWrapped(month);
+  if (result.kind === 'empty') redirect('/assay');
+  if (result.kind === 'missing') notFound();
+  return <WrappedPage view={result.view} demo={false} />;
 }

@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   // built from `process.cwd()` is invisible to file tracing, so name them.
   outputFileTracingIncludes: {
     '/api/certificate': ['./assets/fonts/*.woff'],
+    '/api/connector': ['./connector/KavrixConnector.mq5'],
   },
 };
 

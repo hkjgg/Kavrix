@@ -94,7 +94,7 @@ describe('the EA panel', () => {
     expect(panel?.figures[0]?.value).toBe(formatR(ea(1003).netR));
     expect(panel?.figures[1]?.value).toBe(ea(1003).profitFactor?.toFixed(2));
     expect(panel?.figures[2]?.value).toBe(formatR(-ea(1003).maxDrawdownR));
-    expect(panel?.ledgerHref).toBe('/ledger?source=1003');
+    expect(panel?.ledgerHref).toBe('/demo/ledger?source=1003');
   });
 
   it('breaks the Fineness into the four weighted components, in §7 order', () => {
