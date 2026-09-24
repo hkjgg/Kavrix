@@ -159,7 +159,7 @@ describe('buildDossier — previous and next follow the Ledger’s filter', () =
     expect(filtered?.nav.next?.label).toBe(ordered[index + 1]?.id);
     expect(filtered?.nav.next?.href).toContain('source=manual&sort=r&dir=asc');
     expect(filtered?.nav.position).toBe(`Trade ${index + 1} of ${ordered.length} in the current filter`);
-    expect(filtered?.nav.back).toContain('/ledger?source=manual&sort=r&dir=asc');
+    expect(filtered?.nav.back).toContain('/demo/ledger?source=manual&sort=r&dir=asc');
     const page = Math.floor(index / 50) + 1;
     if (page > 1) expect(filtered?.nav.back).toContain(`page=${page}`);
   });

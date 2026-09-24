@@ -10,6 +10,7 @@ import { ExplainButton } from './ExplainButton';
 import { EXPLAIN_IDS } from './explain';
 import type { PurityState, PurityStamp, PurityTone, PurityView } from './purity';
 import { DEFAULT_PURITY_STATE, purityLayers } from './purity';
+import { useRoutes } from '@/components/app/SurfaceContext';
 
 /**
  * The Purity Line (CLAUDE.md §8.4), with its What-if (§6.10).
@@ -72,6 +73,7 @@ export interface PurityLineProps {
 }
 
 export function PurityLine({ view, initialState = DEFAULT_PURITY_STATE }: PurityLineProps) {
+  const routes = useRoutes();
   const [state, setState] = useState<PurityState>(initialState);
   const [hovered, setHovered] = useState<number | null>(null);
   const [focused, setFocused] = useState<number | null>(null);
@@ -286,7 +288,7 @@ export function PurityLine({ view, initialState = DEFAULT_PURITY_STATE }: Purity
               {view.stamps.map((stamp, index) => (
                 <Link
                   key={stamp.tradeId}
-                  href={`/trade/${stamp.tradeId}`}
+                  href={routes.trade(stamp.tradeId)}
                   prefetch={false}
                   data-stamp={index}
                   tabIndex={index === cursor ? 0 : -1}

@@ -1,59 +1,50 @@
 import Link from 'next/link';
 import { cn } from '@/lib/cn';
+import type { Surface } from '@/lib/routes';
+import { routesFor } from '@/lib/routes';
 
 /**
- * The product's five surfaces (CLAUDE.md §4).
- *
- * All five exist (Stages 3–7). A surface without a page yet (`href: null`)
- * is shown, not hidden — a reader should be able to see where the product
- * goes — but inert: an `aria-disabled` span, never a link that 404s.
+ * The product's five surfaces (CLAUDE.md §4), for the demo or for a real
+ * account — the same five, at `/demo/*` or at the root (§11, §15). A real
+ * account also gets Settings, which the read-only demo has no use for.
  */
 
-export type NavKey = 'assay' | 'ledger' | 'vault' | 'constellation' | 'wrapped';
+export type NavKey = 'assay' | 'ledger' | 'vault' | 'constellation' | 'wrapped' | 'settings';
 
 export interface NavItem {
   key: NavKey;
   label: string;
-  href: string | null;
-  stage: string;
+  href: string;
 }
 
-export const NAV_ITEMS: readonly NavItem[] = [
-  { key: 'assay', label: 'Assay', href: '/demo', stage: 'Stage 3' },
-  { key: 'ledger', label: 'Ledger', href: '/ledger', stage: 'Stage 4' },
-  { key: 'vault', label: 'Vault', href: '/vault', stage: 'Stage 5' },
-  { key: 'constellation', label: 'Constellation', href: '/constellation', stage: 'Stage 6' },
-  { key: 'wrapped', label: 'Wrapped', href: '/wrapped', stage: 'Stage 7' },
-];
+export function navItems(surface: Surface): NavItem[] {
+  const routes = routesFor(surface);
+  const items: NavItem[] = [
+    { key: 'assay', label: 'Assay', href: routes.assay },
+    { key: 'ledger', label: 'Ledger', href: routes.ledger },
+    { key: 'vault', label: 'Vault', href: routes.vault },
+    { key: 'constellation', label: 'Constellation', href: routes.constellation },
+    { key: 'wrapped', label: 'Wrapped', href: routes.wrapped },
+  ];
+  if (routes.settings !== null) items.push({ key: 'settings', label: 'Settings', href: routes.settings });
+  return items;
+}
+
+/** The demo's navigation — what every surface drew before Stage 8. */
+export const NAV_ITEMS: readonly NavItem[] = navItems('demo');
 
 export interface PrimaryNavProps {
   /** The surface this page belongs to. A Dossier belongs to the Ledger. */
   current: NavKey;
+  surface?: Surface;
   className?: string;
 }
 
-export function PrimaryNav({ current, className }: PrimaryNavProps) {
+export function PrimaryNav({ current, surface = 'demo', className }: PrimaryNavProps) {
   return (
     <nav aria-label="Primary" className={className}>
       <ul className="flex items-center gap-1">
-        {NAV_ITEMS.map((item) => {
-          const base =
-            'block rounded-full px-3.5 py-2 text-[11px] font-medium uppercase tracking-[2px] whitespace-nowrap';
-
-          if (item.href === null) {
-            return (
-              <li key={item.label}>
-                <span
-                  aria-disabled="true"
-                  title={`${item.label} arrives in ${item.stage}`}
-                  className={cn(base, 'cursor-not-allowed text-text-3/55')}
-                >
-                  {item.label}
-                </span>
-              </li>
-            );
-          }
-
+        {navItems(surface).map((item) => {
           const active = item.key === current;
           return (
             <li key={item.label}>
@@ -61,8 +52,7 @@ export function PrimaryNav({ current, className }: PrimaryNavProps) {
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  base,
-                  'transition-colors',
+                  'block whitespace-nowrap rounded-full px-3.5 py-2 text-[11px] font-medium uppercase tracking-[2px] transition-colors',
                   active
                     ? 'bg-surface-2 text-gold hover:bg-surface-2'
                     : 'text-text-2 hover:bg-surface-2 hover:text-text',

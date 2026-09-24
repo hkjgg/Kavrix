@@ -35,6 +35,8 @@ import {
 } from '@/components/viz/constellation';
 import type { DriftChartGeometry } from './driftChart';
 import { buildDriftChart } from './driftChart';
+import type { SurfaceRoutes } from '@/lib/routes';
+import { DEMO_ROUTES } from '@/lib/routes';
 
 /** The one sentence a "same bet" pair carries, wherever it is shown. */
 export const SAME_BET_SENTENCE =
@@ -360,6 +362,7 @@ function panelView(
   correlations: readonly EaCorrelation[],
   settings: EngineSettings,
   currency: string,
+  routes: SurfaceRoutes,
 ): EaPanelView {
   const notes = componentNotes(ea, settings);
   const keys: (keyof FinenessComponents)[] = [
@@ -415,7 +418,7 @@ function panelView(
         ? ''
         : 'No backtest dispersion was entered, so there is no Monte Carlo band: the drawdown is judged against the baseline period instead.',
     correlations: correlationRows(ea, eas, correlations),
-    ledgerHref: `/ledger?source=${ea.magic}`,
+    ledgerHref: routes.ledgerSource(ea.magic),
   };
 }
 
@@ -463,12 +466,15 @@ export interface BuildConstellationInput {
   constellation: ConstellationResult;
   settings: EngineSettings;
   currency: string;
+  /** Where the links go. Default the demo. */
+  routes?: SurfaceRoutes;
 }
 
 export function buildConstellationView({
   constellation,
   settings,
   currency,
+  routes = DEMO_ROUTES,
 }: BuildConstellationInput): ConstellationView {
   const { eas, correlations, summary } = constellation;
   const byMagic = new Map(eas.map((ea) => [ea.magic, ea]));
@@ -553,7 +559,7 @@ export function buildConstellationView({
     });
 
   const panels: Record<string, EaPanelView> = {};
-  for (const ea of eas) panels[String(ea.magic)] = panelView(ea, eas, correlations, settings, currency);
+  for (const ea of eas) panels[String(ea.magic)] = panelView(ea, eas, correlations, settings, currency, routes);
 
   const driftingNames = summary.driftingMagics.map((magic) => byMagic.get(magic)?.name ?? `EA ${magic}`);
   const sameBetNames = correlations

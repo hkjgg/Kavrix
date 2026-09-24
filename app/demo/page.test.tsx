@@ -157,12 +157,12 @@ describe('/demo', () => {
 
   it('links every surface, Wrapped included, and lights only the Assay', () => {
     expect(markup).not.toContain('aria-disabled="true"');
-    expect(markup).toContain('href="/wrapped"');
-    expect(markup).not.toMatch(/aria-current="page"[^>]*href="\/wrapped"/);
+    expect(markup).toContain('href="/demo/wrapped"');
+    expect(markup).not.toMatch(/aria-current="page"[^>]*href="\/demo\/wrapped"/);
     expect(markup).toMatch(/aria-current="page"[^>]*href="\/demo"/);
-    expect(markup).toContain('href="/ledger"');
-    expect(markup).not.toMatch(/aria-current="page"[^>]*href="\/ledger"/);
-    expect(markup).toContain('href="/vault"');
-    expect(markup).not.toMatch(/aria-current="page"[^>]*href="\/vault"/);
+    expect(markup).toContain('href="/demo/ledger"');
+    expect(markup).not.toMatch(/aria-current="page"[^>]*href="\/demo\/ledger"/);
+    expect(markup).toContain('href="/demo/vault"');
+    expect(markup).not.toMatch(/aria-current="page"[^>]*href="\/demo\/vault"/);
   });
 });

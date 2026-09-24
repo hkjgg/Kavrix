@@ -35,6 +35,7 @@ import {
   zoomWindow,
 } from './dayChart';
 import type { VaultDay } from './vault';
+import { useRoutes } from '@/components/app/SurfaceContext';
 
 /**
  * The Day Assay (CLAUDE.md §6.11, §8.7) — one day as a picture, a story and a
@@ -100,6 +101,7 @@ interface ChartProps {
 }
 
 function DayChart({ assay, sessions, currency, focus, hoverTrade, onHoverTrade, window: view }: ChartProps) {
+  const routes = useRoutes();
   const boxRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(520);
   const [hoverNews, setHoverNews] = useState<number | null>(null);
@@ -320,7 +322,7 @@ function DayChart({ assay, sessions, currency, focus, hoverTrade, onHoverTrade, 
             return (
               <a
                 key={trade.id}
-                href={`/trade/${trade.id}`}
+                href={routes.trade(trade.id)}
                 data-marker={trade.id}
                 aria-label={`${trade.id}, ${trade.entry}–${trade.close} UTC, ${formatR(trade.rMultiple)}, ${formatMoney(trade.netMoney, {
                   currency,

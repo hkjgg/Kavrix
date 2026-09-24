@@ -35,6 +35,8 @@ import type {
 import { CONFIDENCE_LABELS } from '@/lib/engine/confidence';
 import { MONTH_NAMES, longDate, monthLabel, shortDate } from '@/lib/dates';
 import { formatKarat, formatMoney, formatR } from '@/lib/format';
+import type { Surface, SurfaceRoutes } from '@/lib/routes';
+import { DEMO_ROUTES } from '@/lib/routes';
 
 /* -------------------------------------------------------------------------
  * Shapes
@@ -205,14 +207,16 @@ export interface WrappedView {
   chapters: WrappedChapterView[];
   /** The page for this month, the one "Copy link" copies. */
   href: string;
+  /** The demo's surfaces or a real account's — every other link follows it. */
+  surface: Surface;
 }
 
 /* -------------------------------------------------------------------------
  * Helpers
  * ---------------------------------------------------------------------- */
 
-export function wrappedHref(month: MonthKey): string {
-  return `/wrapped/${month}`;
+export function wrappedHref(month: MonthKey, routes: SurfaceRoutes = DEMO_ROUTES): string {
+  return routes.wrappedMonth(month);
 }
 
 function round1(value: number): number {
@@ -405,7 +409,7 @@ function gapView(chapter: GapChapter, base: ChapterBase): GapChapterView {
 /** The day chart, a mini Day Assay: 1000 wide, the Vault's own folded time scale. */
 export const MINI_DAY = { width: 640, height: CHART.height } as const;
 
-function dayView(chapter: DayChapterWrapped, base: ChapterBase): DayChapterView {
+function dayView(chapter: DayChapterWrapped, base: ChapterBase, routes: SurfaceRoutes): DayChapterView {
   const assay = buildDayAssayView(chapter.story);
   const top = CHART.top;
   const bottom = CHART.height - CHART.bottom;
@@ -436,7 +440,7 @@ function dayView(chapter: DayChapterWrapped, base: ChapterBase): DayChapterView 
     dateLabel: longDate(chapter.date),
     karatLabel: formatKarat(chapter.story.karat),
     tierLabel: chapter.story.tier,
-    vaultHref: `/vault?day=${chapter.date}`,
+    vaultHref: routes.vaultDay(chapter.date),
     width: MINI_DAY.width,
     height: MINI_DAY.height,
     karatPaths: karatSegments(steps, axis.x, ky, axis.x0, axis.x1).map((segment) => ({ d: segment.d, impure: segment.impure })),
@@ -574,9 +578,17 @@ export interface BuildWrappedViewInput {
   months: readonly { month: MonthKey; partial: boolean }[];
   currency: string;
   sessions: readonly SessionDefinition[];
+  /** Where the links go. Default the demo. */
+  routes?: SurfaceRoutes;
 }
 
-export function buildWrappedView({ wrapped, months, currency, sessions }: BuildWrappedViewInput): WrappedView {
+export function buildWrappedView({
+  wrapped,
+  months,
+  currency,
+  sessions,
+  routes = DEMO_ROUTES,
+}: BuildWrappedViewInput): WrappedView {
   const chapters: WrappedChapterView[] = wrapped.chapters.map((chapter: WrappedChapter, index) => {
     const base: ChapterBase = {
       number: String(index + 1).padStart(2, '0'),
@@ -594,7 +606,7 @@ export function buildWrappedView({ wrapped, months, currency, sessions }: BuildW
       case 'gap':
         return gapView(chapter, base);
       case 'day':
-        return dayView(chapter, base);
+        return dayView(chapter, base, routes);
       case 'proof':
         return proofView(chapter, base);
       case 'eas':
@@ -620,11 +632,12 @@ export function buildWrappedView({ wrapped, months, currency, sessions }: BuildW
       month: entry.month,
       label: monthLabel(entry.month),
       short: `${(MONTH_NAMES[Number(entry.month.slice(5, 7)) - 1] ?? '').slice(0, 3)} ${entry.month.slice(2, 4)}`,
-      href: wrappedHref(entry.month),
+      href: wrappedHref(entry.month, routes),
       current: entry.month === wrapped.month,
       partial: entry.partial,
     })),
     chapters,
-    href: wrappedHref(wrapped.month),
+    href: wrappedHref(wrapped.month, routes),
+    surface: routes.surface,
   };
 }

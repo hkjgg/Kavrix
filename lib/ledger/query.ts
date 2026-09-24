@@ -12,6 +12,8 @@
  * the engine already measured.
  */
 
+import type { SurfaceRoutes } from '@/lib/routes';
+import { DEMO_ROUTES } from '@/lib/routes';
 import type { ImpurityKind, SessionKey } from '@/lib/engine/enrich';
 import { IMPURITY_KINDS, SESSION_KEYS } from './labels';
 import type { LedgerRow } from './types';
@@ -179,8 +181,8 @@ export function withQuery(path: string, search: string): string {
  * A trade's Dossier, carrying the Ledger's filter and sort (not its page), so
  * the Dossier's previous and next walk the same rows the reader came from.
  */
-export function dossierHref(id: string, query: LedgerQuery): string {
-  return withQuery(`/trade/${encodeURIComponent(id)}`, serializeLedgerQuery(query, { withoutPage: true }));
+export function dossierHref(id: string, query: LedgerQuery, routes: SurfaceRoutes = DEMO_ROUTES): string {
+  return withQuery(routes.trade(id), serializeLedgerQuery(query, { withoutPage: true }));
 }
 
 /* -------------------------------------------------------------------------

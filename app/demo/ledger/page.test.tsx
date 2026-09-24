@@ -18,7 +18,7 @@ const markup = renderToStaticMarkup(LedgerPage());
 const { rows, context } = getDemoLedger();
 const shown = applyLedgerQuery(rows, DEFAULT_LEDGER_QUERY, { asOfMs: context.asOfMs });
 
-describe('/ledger', () => {
+describe('/demo/ledger', () => {
   it('renders the first page of trades, newest first', () => {
     const rowCount = (markup.match(/class="ledger-row /g) ?? []).length;
     expect(rowCount).toBe(LEDGER_PAGE_SIZE);
@@ -56,7 +56,7 @@ describe('/ledger', () => {
 
   it('links every row to its Dossier without prefetching fifty routes', () => {
     const first = shown[0];
-    expect(markup).toContain(`href="/trade/${first?.id}"`);
+    expect(markup).toContain(`href="/demo/trade/${first?.id}"`);
   });
 
   it('offers the filters, the ticket search, the export and the shortcuts', () => {
@@ -70,11 +70,11 @@ describe('/ledger', () => {
   });
 
   it('lights the Ledger in the nav and keeps the unbuilt surfaces dimmed', () => {
-    expect(markup).toMatch(/aria-current="page"[^>]*href="\/ledger"/);
+    expect(markup).toMatch(/aria-current="page"[^>]*href="\/demo\/ledger"/);
     expect(markup).toContain('href="/demo"');
-    expect(markup).toContain('href="/vault"');
-    expect(markup).toContain('href="/constellation"');
-    expect(markup).toContain('href="/wrapped"');
+    expect(markup).toContain('href="/demo/vault"');
+    expect(markup).toContain('href="/demo/constellation"');
+    expect(markup).toContain('href="/demo/wrapped"');
     expect(markup).toContain('Demo data');
   });
 });

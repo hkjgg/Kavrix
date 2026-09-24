@@ -4,7 +4,7 @@ import { getDemoAssay } from '@/lib/demo/assay';
 import { formatR } from '@/lib/format';
 import DossierPage from './page';
 
-/** `/trade/[id]` rendered for the engine's own Similar Trades target. */
+/** `/demo/trade/[id]` rendered for the engine's own Similar Trades target. */
 
 const assay = getDemoAssay();
 const id = assay.similar[0]?.tradeId ?? '';
@@ -15,7 +15,7 @@ const render = async (search: Record<string, string>) =>
     await DossierPage({ params: Promise.resolve({ id }), searchParams: Promise.resolve(search) }),
   );
 
-describe('/trade/[id]', () => {
+describe('/demo/trade/[id]', () => {
   it('renders the header: Hallmark, figures, impurity badges', async () => {
     const markup = await render({});
     if (trade === undefined) throw new Error('no trade');
@@ -59,14 +59,14 @@ describe('/trade/[id]', () => {
     const markup = await render({ source: 'manual', sort: 'r' });
     expect(markup).toContain('rel="prev"');
     expect(markup).toContain('rel="next"');
-    expect(markup).toMatch(/href="\/trade\/T-\d+\?source=manual&amp;sort=r"/);
-    expect(markup).toMatch(/href="\/ledger\?source=manual&amp;sort=r/);
+    expect(markup).toMatch(/href="\/demo\/trade\/T-\d+\?source=manual&amp;sort=r"/);
+    expect(markup).toMatch(/href="\/demo\/ledger\?source=manual&amp;sort=r/);
     expect(markup).toContain('in the current filter');
   });
 
   it('lights the Ledger in the nav', async () => {
     const markup = await render({});
-    expect(markup).toMatch(/aria-current="page"[^>]*href="\/ledger"/);
+    expect(markup).toMatch(/aria-current="page"[^>]*href="\/demo\/ledger"/);
     expect(markup).toContain('Demo data');
   });
 });

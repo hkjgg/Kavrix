@@ -786,17 +786,22 @@ function easChapter(context: MonthContext): EasChapter | null {
   };
 }
 
+/** `KAVRIX ASSAY · 21.4K · SEPTEMBER 2026 · No. 000147` — the line struck along the bar. */
+export function certificateLegend(karat: number, monthName: string, partial: boolean, serial: string): string {
+  return [
+    'KAVRIX ASSAY',
+    formatKarat(karat),
+    partial ? `${monthName} · ${MONTH_TO_DATE.toUpperCase()}` : monthName,
+    `No. ${serial}`,
+  ].join(' · ');
+}
+
 function certificateChapter(context: MonthContext, karat: KaratChapter): CertificateChapter {
   const { input } = context;
   const demo = input.demo === true;
   const serial = certificateSerial(input.result.account, input.month, { demo });
   const monthName = context.label.toUpperCase();
-  const legend = [
-    'KAVRIX ASSAY',
-    formatKarat(karat.karat),
-    context.partial ? `${monthName} · ${MONTH_TO_DATE.toUpperCase()}` : monthName,
-    `No. ${serial}`,
-  ].join(' · ');
+  const legend = certificateLegend(karat.karat, monthName, context.partial, serial);
   return {
     kind: 'certificate',
     serial,

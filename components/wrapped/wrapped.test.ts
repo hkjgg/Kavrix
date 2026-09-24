@@ -47,7 +47,7 @@ describe('buildWrappedView — August 2026', () => {
       expect(chapter.sentences).toEqual(wrapped.chapters[index]?.sentences);
     });
     expect(view.periodText).toBe('1–31 August 2026');
-    expect(view.href).toBe('/wrapped/2026-08');
+    expect(view.href).toBe('/demo/wrapped/2026-08');
   });
 
   it('lists every month, the current one marked and September month to date', () => {
@@ -80,7 +80,7 @@ describe('buildWrappedView — August 2026', () => {
   it('frames the tilt on the day chart and links the day in the Vault', () => {
     const day = view.chapters.find((chapter) => chapter.kind === 'day');
     if (day?.kind !== 'day') throw new Error('no day');
-    expect(day.vaultHref).toBe('/vault?day=2026-08-13');
+    expect(day.vaultHref).toBe('/demo/vault?day=2026-08-13');
     expect(day.tilt).not.toBeNull();
     expect(day.chapters.map((entry) => entry.title)).toEqual(['The open', 'The tilt']);
   });

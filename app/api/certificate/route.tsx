@@ -4,6 +4,8 @@ import { ImageResponse } from 'next/og';
 import { AssayCertificate, OG_FONTS } from '@/components/viz/AssayCertificate';
 import { CERTIFICATE_FORMATS, certificateFilename, isCertificateFormat } from '@/components/viz/certificate';
 import { getDemoDefaultMonth, getDemoWrapped, isDemoMonth } from '@/lib/demo/wrapped';
+import { certificateOf, loadAccountWrapped } from '@/lib/account/wrapped';
+import type { CertificateChapter } from '@/lib/engine';
 
 /**
  * `GET /api/certificate?month=YYYY-MM&format=post|story` — the Assay
@@ -15,9 +17,12 @@ import { getDemoDefaultMonth, getDemoWrapped, isDemoMonth } from '@/lib/demo/wra
  * image is identical on every device, whatever fonts the phone has, at
  * exactly 1080 × 1350 (post) or 1080 × 1920 (story).
  *
- * Until Stage 8 brings real accounts it serves the demo, whose certificates
- * carry a `DEMO-` serial and "Demo data" struck into the bar. The demo is
- * seeded and frozen, so a month's image never changes: it is cached for good.
+ * By default it serves the demo, whose certificates carry a `DEMO-` serial
+ * and "Demo data" struck into the bar. The demo is seeded and frozen, so a
+ * month's image never changes: it is cached for good.
+ *
+ * `&source=account` serves the signed-in trader's own month instead. That
+ * needs a session, reads under RLS, and is never cached by anyone else.
  */
 
 export const runtime = 'nodejs';
@@ -50,12 +55,35 @@ function plain(status: number, message: string): Response {
   return new Response(message, { status, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
 }
 
+async function render(certificate: CertificateChapter, format: 'post' | 'story', cacheControl: string): Promise<Response> {
+  const { width, height } = CERTIFICATE_FORMATS[format];
+  return new ImageResponse(<AssayCertificate data={certificate} format={format} fonts={OG_FONTS} />, {
+    width,
+    height,
+    fonts: await loadFonts(),
+    headers: {
+      'Cache-Control': cacheControl,
+      'Content-Disposition': `inline; filename="${certificateFilename(certificate.serial, format)}"`,
+    },
+  });
+}
+
 export async function GET(request: Request): Promise<Response> {
   const params = new URL(request.url).searchParams;
-  const month = params.get('month') ?? getDemoDefaultMonth();
   const format = params.get('format') ?? 'post';
-
   if (!isCertificateFormat(format)) return plain(400, 'format must be post or story');
+
+  if (params.get('source') === 'account') {
+    const month = params.get('month');
+    const result = await loadAccountWrapped(month);
+    if (result.kind === 'empty') return plain(401, 'Sign in to export your own certificate');
+    if (result.kind === 'missing') return plain(404, `No month ${month ?? ''} in your history`);
+    const certificate = certificateOf(result.wrapped);
+    if (certificate === null) return plain(404, `Assaying… ${result.wrapped.label} holds too few trades for a certificate`);
+    return render(certificate, format, 'private, no-store');
+  }
+
+  const month = params.get('month') ?? getDemoDefaultMonth();
   if (!isDemoMonth(month)) return plain(404, `No month ${month} in the demo history`);
 
   const wrapped = getDemoWrapped(month);
@@ -63,15 +91,5 @@ export async function GET(request: Request): Promise<Response> {
   if (wrapped.state !== 'scored' || certificate?.kind !== 'certificate') {
     return plain(404, `Assaying… ${wrapped.label} holds too few trades for a certificate`);
   }
-
-  const { width, height } = CERTIFICATE_FORMATS[format];
-  return new ImageResponse(<AssayCertificate data={certificate} format={format} fonts={OG_FONTS} />, {
-    width,
-    height,
-    fonts: await loadFonts(),
-    headers: {
-      'Cache-Control': 'public, max-age=31536000, immutable',
-      'Content-Disposition': `inline; filename="${certificateFilename(certificate.serial, format)}"`,
-    },
-  });
+  return render(certificate, format, 'public, max-age=31536000, immutable');
 }

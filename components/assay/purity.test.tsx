@@ -60,7 +60,7 @@ describe('buildPurityView', () => {
     expect(new Set(view.stamps.map((stamp) => stamp.tradeId))).toEqual(new Set(impure.map((trade) => trade.id)));
     const markup = render();
     for (const stamp of view.stamps) {
-      expect(markup).toContain(`href="/trade/${stamp.tradeId}"`);
+      expect(markup).toContain(`href="/demo/trade/${stamp.tradeId}"`);
       expect(stamp.x).toBeGreaterThanOrEqual(0);
       expect(stamp.x).toBeLessThanOrEqual(100);
       expect(stamp.reasons.length).toBeGreaterThan(0);

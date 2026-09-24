@@ -70,9 +70,9 @@ describe('URL state', () => {
 
   it('links a Dossier with the filter and sort, never the page', () => {
     expect(dossierHref('T-700766', q({ source: 'manual', sort: 'r', page: 4 }))).toBe(
-      '/trade/T-700766?source=manual&sort=r',
+      '/demo/trade/T-700766?source=manual&sort=r',
     );
-    expect(dossierHref('T-700766', DEFAULT_LEDGER_QUERY)).toBe('/trade/T-700766');
+    expect(dossierHref('T-700766', DEFAULT_LEDGER_QUERY)).toBe('/demo/trade/T-700766');
   });
 });
 

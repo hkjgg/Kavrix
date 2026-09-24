@@ -34,7 +34,7 @@ function renderAssay(date: string): string {
   );
 }
 
-describe('/vault', () => {
+describe('/demo/vault', () => {
   it('shelves the whole 90-day history, one month a shelf', () => {
     expect(view.firstDate).toBe('2026-06-22');
     expect(view.lastDate).toBe(assay.asOf.slice(0, 10));
@@ -142,10 +142,10 @@ describe('/vault', () => {
   });
 
   it('lights the Vault in the nav and keeps the unbuilt surfaces dimmed', () => {
-    expect(markup).toMatch(/aria-current="page"[^>]*href="\/vault"/);
-    expect(markup).toContain('href="/ledger"');
-    expect(markup).toContain('href="/constellation"');
-    expect(markup).toContain('href="/wrapped"');
+    expect(markup).toMatch(/aria-current="page"[^>]*href="\/demo\/vault"/);
+    expect(markup).toContain('href="/demo/ledger"');
+    expect(markup).toContain('href="/demo/constellation"');
+    expect(markup).toContain('href="/demo/wrapped"');
     expect(markup).toContain('Demo data');
   });
 });
@@ -167,7 +167,7 @@ describe('a Day Assay', () => {
 
   it('marks every trade on the chart, each a link to its Dossier, in jade or oxblood', () => {
     for (const step of story?.karatSeries ?? []) {
-      expect(html).toContain(`href="/trade/${step.tradeId}"`);
+      expect(html).toContain(`href="/demo/trade/${step.tradeId}"`);
       expect(html).toContain(`data-marker="${step.tradeId}"`);
     }
     expect(html).toContain('fill="var(--oxblood)"');

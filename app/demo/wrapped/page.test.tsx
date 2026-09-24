@@ -20,11 +20,11 @@ const chapterStates = (html: string) =>
     (match[2] ?? '').includes('data-inactive=""') ? 'inactive' : 'active',
   ]);
 
-describe('/wrapped', () => {
+describe('/demo/wrapped', () => {
   it('opens on the last full month, August, with "Demo data" in the header', () => {
     expect(markup).toContain('Wrapped · <span class="text-text-2">August 2026</span>');
     expect(markup).toContain('Demo data');
-    expect(markup).toMatch(/aria-current="page"[^>]*href="\/wrapped\/2026-08"|href="\/wrapped\/2026-08"[^>]*aria-current="page"/);
+    expect(markup).toMatch(/aria-current="page"[^>]*href="\/demo\/wrapped\/2026-08"|href="\/demo\/wrapped\/2026-08"[^>]*aria-current="page"/);
   });
 
   it('renders all eight chapters, the first one showing', () => {
@@ -62,7 +62,7 @@ describe('/wrapped', () => {
   });
 });
 
-describe('/wrapped/[month]', () => {
+describe('/demo/wrapped/[month]', () => {
   it('prerenders every month of the demo', () => {
     expect(generateStaticParams()).toEqual([
       { month: '2026-06' },

@@ -14,7 +14,7 @@
 import type { DemoDataset } from './generate';
 import { DEMO_END_MS, generateDemoData } from './generate';
 import type { AssayResult } from '@/lib/engine';
-import { runEngine } from '@/lib/engine';
+import { runAccountEngine } from '@/lib/views/account';
 
 let cachedData: DemoDataset | null = null;
 let cached: AssayResult | null = null;
@@ -26,20 +26,6 @@ export function getDemoDataset(): DemoDataset {
 }
 
 export function getDemoAssay(): AssayResult {
-  if (cached !== null) return cached;
-
-  const data = getDemoDataset();
-  cached = runEngine(
-    {
-      account: data.account,
-      trades: data.trades,
-      modifications: data.modifications,
-      calendar: data.calendar,
-      eas: data.eas,
-      symbolInfo: data.symbolInfo,
-    },
-    {},
-    DEMO_END_MS,
-  );
+  cached ??= runAccountEngine(getDemoDataset(), {}, DEMO_END_MS);
   return cached;
 }

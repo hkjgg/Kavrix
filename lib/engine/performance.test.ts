@@ -91,6 +91,16 @@ function syntheticHistory(count: number, seed = 20260922): {
   };
 }
 
+/**
+ * The stopwatch's limit. One second is the contract (§16) on a developer
+ * machine; a shared CI runner is several times slower and noisier, and timing
+ * it measures the runner, not the engine. On CI (`process.env.CI`) the limit
+ * is raised rather than the test skipped, so an accidental O(n²) — which costs
+ * tens of seconds at 10,000 trades — still fails there. The scaling test
+ * below is a ratio, so it holds on any machine and is unchanged.
+ */
+const LIMIT_MS = process.env.CI ? 5_000 : 1_000;
+
 const account = {
   login: 1,
   server: 'Bench-Server',
@@ -101,7 +111,7 @@ const account = {
 };
 
 describe('runEngine performance', () => {
-  it('runs a 10,000-trade history in under a second', () => {
+  it(`runs a 10,000-trade history in under ${LIMIT_MS / 1_000} s`, () => {
     const history = syntheticHistory(10_000);
     const input = {
       account,
@@ -121,7 +131,7 @@ describe('runEngine performance', () => {
     expect(result.counts.trades).toBe(10_000);
     expect(result.edgeMap.testedCells).toBeGreaterThan(10);
     expect(result.karat.state).toBe('scored');
-    expect(elapsedMs).toBeLessThan(1_000);
+    expect(elapsedMs).toBeLessThan(LIMIT_MS);
   });
 
   it('scales close to linearly, not quadratically', () => {

@@ -22,7 +22,7 @@ function panel(magic: number): string {
   return renderToStaticMarkup(<EaPanel panel={found} onClose={() => undefined} headingRef={null} />);
 }
 
-describe('/constellation', () => {
+describe('/demo/constellation', () => {
   it('is headed 04 — Constellation and carries the demo badge', () => {
     expect(markup).toMatch(/04 (&mdash;|—)/);
     expect(markup).toContain('Constellation');
@@ -30,8 +30,8 @@ describe('/constellation', () => {
   });
 
   it('lights the Constellation in the nav', () => {
-    expect(markup).toMatch(/aria-current="page"[^>]*href="\/constellation"/);
-    expect(markup).toContain('href="/wrapped"');
+    expect(markup).toMatch(/aria-current="page"[^>]*href="\/demo\/constellation"/);
+    expect(markup).toContain('href="/demo/wrapped"');
   });
 
   it('shows the summary row from the engine', () => {
@@ -81,7 +81,7 @@ describe('the EA panel', () => {
     expect(html).toContain('Drifting');
     expect(html).toContain('past the drift line');
     expect(html).toContain('outside the');
-    expect(html).toContain('href="/ledger?source=1003"');
+    expect(html).toContain('href="/demo/ledger?source=1003"');
     expect(html).not.toContain(SAME_BET_SENTENCE);
   });
 
