@@ -31,7 +31,7 @@ describe('/constellation', () => {
 
   it('lights the Constellation in the nav', () => {
     expect(markup).toMatch(/aria-current="page"[^>]*href="\/constellation"/);
-    expect(markup).toMatch(/aria-disabled="true" title="Wrapped arrives in Stage \d"/);
+    expect(markup).toContain('href="/wrapped"');
   });
 
   it('shows the summary row from the engine', () => {

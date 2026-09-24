@@ -385,7 +385,9 @@ with its geometry and timing in `components/viz/instrument.ts`:
    brightness = Fineness.
 9. **AssayCertificate** — shareable bullion-bar card:
    `KAVRIX ASSAY · 21.4K · SEPTEMBER 2026 · No. 000147`, engraved stamp, serial number.
-   Exportable as PNG at 1080×1350 and 1080×1920.
+   Exportable as PNG at 1080×1350 and 1080×1920. One component, two renderers: the page and
+   `/api/certificate` (`next/og`, i.e. `@vercel/og`) draw the same tree, so the PNG *is* the
+   on-screen card. A demo certificate has a `DEMO-` serial and "Demo data" struck into the bar.
 
 Price chart in the Trade Dossier: `lightweight-charts` candles with session bands behind,
 news markers on the time axis, entry/exit/SL/TP lines.
@@ -526,7 +528,7 @@ components/
   viz/                        AssayDial, GoldClock, PurityLine, Refinery,
                               Hallmark, VaultCalendar, Constellation, AssayCertificate
                               (+ pure geometry: dial.ts, instrument.ts, rings.ts, hallmark.ts,
-                              purity.ts, ingot.ts, constellation.ts)
+                              purity.ts, ingot.ts, constellation.ts, certificate.ts)
   assay/                      the Assay page: AssayInstrument (dial + PillarRings sub-dials),
                               scenes (incl. the Purity Line + What-if), Explain drawer
   vault/                      the Vault: view builder (shelves, ingots, keyboard), screen,
@@ -534,19 +536,22 @@ components/
   constellation/              the Constellation: view builder, screen, EA panel, drift chart
                               geometry, correlation matrix
   ledger/                     the Ledger screen (client: filters, table, keyboard, export)
+  wrapped/                    Wrapped: view builder, chapters, the story (pace, keys, swipe),
+                              the on-screen certificate and its actions
   dossier/                    the Trade Dossier: view builder, screen, price chart
   ui/                         primitives (Card, Label, Stat, Button, Table)
 lib/
   engine/                     trades, sessions, news, karat, gap, proof, fineness, correlation,
                               confidence, baselines, edgemap, similar, counterfactual, replay,
-                              dayStory, prop
+                              dayStory, prop, wrapped
   demo/                       deterministic generator (+ memoised Assay, Ledger rows, candles,
-                              Vault, Constellation)
+                              Vault, Constellation, Wrapped by month)
   dates.ts                    UTC calendar words for day keys, without Intl — browser-safe
   ledger/                     rows, query (filter/sort/URL), summary, CSV, keyboard, pack —
                               browser-safe except rows.ts
   supabase/                   clients + typed queries
 connector/                    KavrixConnector.mq5 + README
+assets/fonts/                 the three families as WOFF (OFL), embedded in certificate PNGs
 ```
 
 ---
@@ -596,10 +601,13 @@ connector/                    KavrixConnector.mq5 + README
   - `/constellation`: EAs as stars on a frozen, seeded force layout (distance = 1 − correlation),
     the EA panel (Fineness hallmark, component bars, drift chart, band, correlations, into the
     Ledger), a summary row, a correlation matrix, `?ea=` in the URL.
-- [ ] 7 — Wrapped + Assay Certificate export
+- [x] 7 — Wrapped + Assay Certificate export
   - The Certificate and `/verify/[serial]` show **only** Karat, tier, Hallmarks, period and
     trade count. **Never money, R totals or balances** — a shareable card is a public surface,
     and the trader's P&L is nobody else's business.
+  - `/wrapped` (+ `/wrapped/YYYY-MM`): eight chapters over `lib/engine/wrapped.ts`, reader-paced
+    (click / tap / → / swipe, ← back, Esc out), ending in the certificate; PNG export at
+    1080×1350 and 1080×1920 from `/api/certificate`, rendered by `next/og`.
 - [ ] 8 — Auth + ingest API + Kavrix Connector EA
   - Connector status is honest: "Synced · 4s ago" from a real heartbeat. **Never an invented
     latency figure**, and never a green dot the data does not support.
@@ -1759,3 +1767,112 @@ Wrapped. Noted in `ROADMAP.md`.
     1002 ↔ 1003                         −0.242 · 65 shared days
     Summary                             3 EAs · average 778.5‰ · 1 same-bet pair · drifting 1003
 ```
+
+### Stage 7 — Wrapped and the Assay Certificate ✅ (2026-09-24)
+
+An engine-and-surface stage. **No Karat, Gap, Replay or Fineness formula changed**: the one
+engine addition is `lib/engine/wrapped.ts`, which arranges numbers the existing modules already
+produce. Every figure on the new pages is read off `WrappedResult`.
+
+**Engine (`lib/engine/wrapped.ts`)**
+- `buildWrapped({ month, result, calendar, demo })` — input is `runEngine` as of the month's last
+  millisecond (`monthAsOf`), or of the data for the running month; output is the chapter list
+  with every number and every sentence. Months: `monthBounds`, `monthAsOf`, `isMonthComplete`,
+  `wrappedMonths`, `defaultWrappedMonth` (the last full month). `certificateSerial` — six
+  digits, a hash of server, login and month; `DEMO-` in the demo.
+- Chapters, each only when its data exists: **karat** (`scorePillars` over the month's trades,
+  delta vs the month before) · **purity** (`stats.equityCurve` in the month, lit by the rolling
+  `series`) · **window** (`rankHourWindows` over the month, dropped if the best window lost
+  money; `describeTrades` for its confidence) · **gap** (`computeKaratGap`, dropped if nothing
+  was billed) · **day** (`worstTiltEpisode` of the month's `computeReplay`, else the purest day;
+  `dayStory`) · **proof** (`proof`, dropped while hidden) · **eas** (`constellation`, dropped
+  without EA trades) · **certificate**. Under 10 manual trades the month is `assaying` and has no
+  chapters. A running month is `partial`: "Month to date" on the page, the legend and the bar.
+- **The month's Karat is the §6.1 formula over the month's own manual trades, unweighted, with
+  the §6.1 minimum sample** — the way Proof scores a week and the Vault a day. Recency inside a
+  month would make its first week count less than its last, and two months would stop being
+  comparable. It is not the dial's rolling score; the chapter compares it with the previous
+  month scored the same way.
+- **Proof and the Constellation are read as they stood at the month's end**, over the whole
+  history to then. Proof needs three weeks in each bucket; a month alone never has them.
+- 28 Vitest cases: a hand-worked fixture month (March, twelve clean trades after a February
+  of oversized winners: 24.0K, up 3.0K on 21.0K; Gap, Proof and EAs drop out), a running month,
+  an assaying month, a thin previous month, and the demo — August hand-checked chapter by
+  chapter against the engine's own modules, July (no Proof), June (no window, no Proof) and
+  September (month to date).
+
+**Demo, 2026:** June 13.0K (22–30 Jun) · July 15.1K · **August 21.9K**, 18K · Solid, up 6.8K,
+worst tilt 13 August, Proof +27.4R a week · September 22.6K month to date.
+
+**Surfaces**
+- `/wrapped` (the last full month) and `/wrapped/YYYY-MM` — `force-static` / SSG, outside the
+  app shell: wordmark, months, "Demo data", a close button. `/verify/[serial]` — the four demo
+  serials, showing only what the certificate shows.
+- `components/wrapped/` — `wrapped.ts` (view builder: strings and geometry only), 
+  `WrappedChapters.tsx` (server), `WrappedStory.tsx` (client: pace), `story.ts` (key map),
+  `CertificateCard.tsx`, `CertificateActions.tsx`, `WrappedPage.tsx`; `lib/demo/wrapped.ts`.
+- `components/viz/AssayCertificate.tsx` + `certificate.ts`; `app/api/certificate/route.tsx`;
+  `assets/fonts/` (Instrument Serif 400, Manrope 500/600, JetBrains Mono 400/500 as WOFF, OFL,
+  from Fontsource), traced into the route by `outputFileTracingIncludes`.
+- `AssayDial` gained an optional `explainId` and `deltaSuffix` / `noDeltaText`; `Scene` exports
+  `SceneInView`; the nav's Wrapped is a live link everywhere.
+- **61 new Vitest cases, 761 in total.**
+
+**Decisions taken**
+- **Brief vs CLAUDE.md, CLAUDE.md followed.** (1) The certificate's three figures are Trades,
+  Trading days and Period, not net R and Gap in R: §17 keeps R totals off the certificate.
+  (2) The best-window chapter does not reuse a GoldClock — it does not exist; §17 puts it in the
+  instrument's reserved ring at Stage 11. The chapter draws the month's trades on a 24-hour
+  ruler (entry hour × R, sessions above, the window framed), which leaves the Gold Clock's shape
+  to Stage 11. (3) `@vercel/og` is used as Next ships it, `next/og` (the same library, 0.11.1),
+  so no second copy is installed.
+- **One component, two renderers.** `AssayCertificate` is written in the subset Satori and the
+  browser share — absolute boxes in canvas pixels, inline styles, flex on every multi-child box,
+  literal §9 colours (a test holds them to `globals.css`), metal and guilloché as inline SVG, no
+  text inside SVG. Satori serialises an `<svg>` as it stands and does not render components
+  inside it, so the engraved rules are plain elements. The page lays the canvas out at 1080
+  wide and scales it with one transform: `scale(tan(atan2(100cqw, 1080px)))` is box ÷ canvas as
+  a number, with no script; a transform is never layout shift.
+- **Serials are deterministic, not sequential.** `No. 000147` in §8.9 implies a counter; a hash
+  of account and month needs no table to print the same number on every device. Stage 8 stores
+  it in `certificates`, where uniqueness is enforced.
+- **Chapters are shown with `data-inactive`, not `hidden`.** Tailwind v4's preflight pins
+  `[hidden]` with a layered `!important` that nothing unlayered can undo, so the no-script
+  fallback (`@media (scripting: none)` and a `<noscript>` style: every chapter, in order) could
+  never show them. Showing a chapter (display: none → flex) is what replays its reveal.
+- **Pace is the reader's.** Click or tap anywhere not a control, →, PageDown or a left swipe
+  goes on; ←, PageUp or a right swipe goes back; Home / End; Esc clicks the header's exit link.
+  Space and Enter stay with the focused button. Focus is only moved when the chapter holding it
+  is hidden. Counters wait for their chapter (`SceneInView`). Nothing loops; no autoplay.
+- **Headlines do not repeat the big numeral.** The Gap chapter's headline names the costliest
+  pillar and the total counts up beneath it; Proof keeps the brief's sentence and draws the two
+  buckets rather than the same figure twice.
+- **The certificate reveal** — the bar rises out of darkness (1.1 s), one light sweeps it, the
+  hallmarks press in at 2.2 s — exists only under `scripting: enabled` and
+  `prefers-reduced-motion: no-preference`; the PNG never carries it.
+
+**Lighthouse** (Lighthouse 13.5, production build, `next start`, headless Chromium)
+
+| | Performance | Accessibility | Best practices | SEO |
+|---|---|---|---|---|
+| `/demo` mobile | **93–96** (three warm runs) | **100** | **100** | **100** |
+| `/demo` desktop | **100** | **100** | **100** | **100** |
+| `/wrapped` mobile | **93–95** | **100** | **100** | **100** |
+| `/wrapped` desktop | **100** | 96 → **100** after a contrast fix | **100** | **100** |
+
+`/demo` mobile TBT 100–150 ms, CLS 0.004; `/wrapped` mobile TBT 70–160 ms, CLS 0.002. The first
+cold `/demo` run read 76 (TBT 680 ms) and was not repeated in three more.
+
+**Verified in a real browser** (Playwright on Chromium): → / ← / Home / End / click advance and
+return; a left and right swipe on a 390 px touch viewport; Esc leaves to `/demo`; no horizontal
+scroll at 390 px or 1440 px; no console errors; under reduced motion `/wrapped` has no
+animations; with scripts stripped every chapter shows. Both PNGs from the production server are
+exactly 1080×1350 and 1080×1920, cached immutable, byte-identical across runs.
+
+**One test note, not a change.** The engine's 1-second benchmark measured 2.26–2.47 s on this
+container — **and 2.42 s on the untouched Stage 6 commit**. `runEngine` is unchanged; the
+threshold and the test are left alone, as at Stages 4 and 5.
+
+**Not built, on purpose**
+No `certificates` table or persistence (Stage 8), no real-account Wrapped, no AI copy, no Gold
+Clock. `/styleguide` still exists.

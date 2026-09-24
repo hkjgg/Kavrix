@@ -151,8 +151,15 @@ export interface AssayDialProps {
   minimumTrades: number;
   /** Small caption under the value, e.g. `Karat · 30 days`. */
   periodLabel: string;
-  /** Key into the explain index for the score itself. */
-  explainId: string;
+  /**
+   * Key into the explain index for the score itself. Without one the value is
+   * plain text — for surfaces that have no Explain drawer (Wrapped).
+   */
+  explainId?: string;
+  /** What the delta is measured against. Default `vs last week`. */
+  deltaSuffix?: string;
+  /** Printed when there is no delta. Default `no prior week`. */
+  noDeltaText?: string;
   className?: string;
 }
 
@@ -164,6 +171,8 @@ export function AssayDial({
   minimumTrades,
   periodLabel,
   explainId,
+  deltaSuffix = 'vs last week',
+  noDeltaText = 'no prior week',
   className,
 }: AssayDialProps) {
   const scored = karat !== null;
@@ -178,6 +187,13 @@ export function AssayDial({
     '--hand-to': `${targetAngle}deg`,
     ...beatStyle(ARRIVAL.hand),
   } as CSSProperties;
+
+  const numeral =
+    karat === null ? null : (
+      <span className="metal-gold-text block font-serif leading-[0.9]" style={{ fontSize: '16.5cqw' }}>
+        <CountUp value={karat} kind="karat" durationMs={ARRIVAL.hand.duration} delayMs={ARRIVAL.hand.delay} />
+      </span>
+    );
 
   const faceBeat = beatStyle(ARRIVAL.face) as CSSProperties;
   const scaleBeat = beatStyle(ARRIVAL.scale) as CSSProperties;
@@ -616,24 +632,18 @@ export function AssayDial({
         {scored ? (
           <>
             <div className="absolute inset-x-0 bottom-[52.6%] flex flex-col items-center">
-              <ExplainButton
-                explainId={explainId}
-                label={altText}
-                bare
-                className="pointer-events-auto block rounded-md"
-              >
-                <span
-                  className="metal-gold-text block font-serif leading-[0.9]"
-                  style={{ fontSize: '16.5cqw' }}
+              {explainId === undefined ? (
+                numeral
+              ) : (
+                <ExplainButton
+                  explainId={explainId}
+                  label={altText}
+                  bare
+                  className="pointer-events-auto block rounded-md"
                 >
-                  <CountUp
-                    value={karat}
-                    kind="karat"
-                    durationMs={ARRIVAL.hand.duration}
-                    delayMs={ARRIVAL.hand.delay}
-                  />
-                </span>
-              </ExplainButton>
+                  {numeral}
+                </ExplainButton>
+              )}
             </div>
 
             <div className="absolute inset-x-0 top-[53.4%] flex flex-col items-center text-center">
@@ -668,7 +678,7 @@ export function AssayDial({
                 style={{ fontSize: 'max(10px, 2.6cqw)' }}
               >
                 {deltaKarat === null ? (
-                  'no prior week'
+                  noDeltaText
                 ) : (
                   <>
                     <CountUp
@@ -678,7 +688,7 @@ export function AssayDial({
                       durationMs={ARRIVAL.hand.duration}
                       delayMs={ARRIVAL.hand.delay}
                     />
-                    <span className="text-text-3"> vs last week</span>
+                    <span className="text-text-3"> {deltaSuffix}</span>
                   </>
                 )}
               </span>

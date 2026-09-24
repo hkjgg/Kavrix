@@ -258,3 +258,4 @@ export * from './counterfactual';
 export * from './replay';
 export * from './dayStory';
 export * from './prop';
+export * from './wrapped';

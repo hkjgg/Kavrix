@@ -47,3 +47,13 @@ Everything here is **V2 or later**. Nothing on this list is built in V1
 - **The Constellation over time (Stage 6).** A month-by-month replay of the sky — stars dimming
   as an EA drifts, threads thickening as two EAs converge — would show *when* a pair became one
   bet. Needs per-period Fineness from the engine, not a re-run in the page.
+- **Wrapped extras (Stage 7).** A year-end Wrapped over twelve monthly assays; a video export of
+  the story (the reveal as frames, not a screen recording); share sheets that post the PNG
+  straight to a network; a "compare two months" chapter. Each needs no new metric — the monthly
+  `WrappedResult`s already carry the numbers.
+- **Certificate serials in `certificates` (Stage 7 → 8).** The serial is a deterministic hash of
+  account and month; Stage 8 stores it, enforces uniqueness, and lets `/verify/[serial]` resolve
+  real accounts. A revocation flag (a month re-assayed after late deals) belongs there too.
+- **Certificate variants (Stage 7).** A light "paper" edition for print, and a square 1080×1080
+  crop. Both would be new layouts of the same `AssayCertificate` tree, never new figures — the
+  certificate stays Karat, tier, hallmarks, period and trade count.
