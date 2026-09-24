@@ -14,7 +14,8 @@
     "lighthouse": "lighthouse http://localhost:3000/demo --preset=desktop --only-categories=performance,accessibility,best-practices,seo --chrome-flags=\"--headless=new --no-sandbox\"",
     "demo:report": "tsx scripts/demo-report.ts",
     "engine:report": "tsx scripts/engine-report.ts",
-    "db:types": "tsx scripts/db-types.ts"
+    "db:types": "tsx scripts/db-types.ts",
+    "simulate:connector": "tsx scripts/simulate-connector.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

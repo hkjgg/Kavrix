@@ -10,12 +10,13 @@
 
 import { cache } from 'react';
 import { redirect } from 'next/navigation';
-import type { PostgrestError } from '@supabase/supabase-js';
 import type { EngineSettings } from '@/lib/engine';
 import { LOGIN_PATH } from '@/lib/auth/paths';
 import type { KavrixClient } from '@/lib/supabase/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { selectAll } from '@/lib/supabase/select';
 import type { AccountDataset } from '@/lib/views/account';
+export { selectAll };
 import type { AccountRow, SettingsRow } from './rows';
 import {
   accountFromRow,
@@ -26,21 +27,6 @@ import {
   symbolInfoFromJson,
   tradesFromRows,
 } from './rows';
-
-/** PostgREST returns at most this many rows a request (`max_rows`), so reads page. */
-const PAGE = 1000;
-
-export async function selectAll<T>(
-  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: PostgrestError | null }>,
-): Promise<T[]> {
-  const rows: T[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await page(from, from + PAGE - 1);
-    if (error !== null) throw new Error(`database read failed: ${error.message}`);
-    rows.push(...(data ?? []));
-    if ((data?.length ?? 0) < PAGE) return rows;
-  }
-}
 
 export interface SessionUser {
   id: string;
